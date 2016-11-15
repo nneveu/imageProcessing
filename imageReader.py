@@ -7,6 +7,7 @@ Created on Wed Nov 02 09:57:59 2016
 Load YAG screen images.
 
 """
+from scipy.ndimage import gaussian_filter
 from scipy import ndimage as ndi
 from skimage import feature
 from skimage.filters import roberts, sobel, scharr, prewitt
@@ -33,6 +34,7 @@ def readimage(imagefile):
     hold    = images[4:] # skipping header info
     #==========================================================
     #Reading images into 3D array 
+    # X by Y by Frame Number
     imagesArray = np.reshape(hold,(dx, dy, -1), order='F')
 
     return(dx, dy, Nframes, imagesArray)    
@@ -67,33 +69,30 @@ def fit(imagesArray, dx, dy, oneframe=1 ):
          
     return (fit_x, fit_y)
     #plt.plot(fity, '-')
+    
+#Deinterlace and filter
+def difilter(image):
+    #Only does guassian filter
+    filtered_image = gaussian_filter(image, 1) #order 1 looks best?
 
-#def edgeDetection(imagesArray):
+    return(filtered_image)
+    
+    
+def edgeDetection(image, lowThres, highThres):
 #Only looks at one image right now
 
-#return (crop)
-
-
+#Cropping
 #==============================================================================
-# Main, calling functions    
+    mask = canny(image, sigma=5, low_threshold=lowThres, high_threshold=highThres)
+
+# #edges = roberts(image)
+# #edges = sobel(image)
+ 
+# mask = rotate>0
+# rotate = skimage.transform.rotate(edges, 0.0, resize=True)
+# crop = rotate[np.ix_(mask.any(1),mask.any(0))]
+# crop2 = image[np.ix_(mask.any(1),mask.any(0))]
 #==============================================================================
-testfile1  = '/Users/nneveu/Documents/DATA/TBA(1-13-16)/DriveOn_WSPE2_WD1_1p756.dat'
-testfile2 = '/Users/nneveu/Documents/DATA/TBA(1-13-16)/DriveOff_WSPE2_WD1_1p51.dat'
-
-(dx, dy, Nframes, imArray) = readimage(testfile2)
-#print "Dx,Dy,NFrames= ",dx,dy,Nframes
-
-#crop = edgeDetection(imArray)
-
-image = imArray[:,:,0]    
-edges = canny(image, sigma=5, low_threshold=50, high_threshold=120)
-rotate = skimage.transform.rotate(edges, 0.0, resize=True)
-#edges = roberts(image)
-#edges = sobel(image)
-
-mask = rotate>0
-crop = rotate[np.ix_(mask.any(1),mask.any(0))]
-crop2 = image[np.ix_(mask.any(1),mask.any(0))]
 #==============================================================================
 # #nonzeroCols = ~np.all(edges==False, axis=0)
 # #nonzeroRows = ~np.all(yag1==False, axis=1)
@@ -120,17 +119,28 @@ crop2 = image[np.ix_(mask.any(1),mask.any(0))]
 
 #hold = edges[yag]
 #crop = hold[:, (hold != 0).sum(axis=0) >= 1] 
-plt.imshow(crop, cmap='copper')
-plt.figure()
-plt.imshow(crop2)#, cmap='copper')#, norm=LogNorm())
-plt.savefig('test.pdf')
-plt.figure()
-plt.imshow(image, cmap='copper')
+    return(mask)
 
-#Plotting distribution of beam 
 #==============================================================================
-#(fit_x, fit_y) = fit(imArray, dx, dy, oneframe=1)
-#(fit_x, fit_y) = fit(crop, len(crop[:,0]), len(crop[0,:]), oneframe=1)
+# Main, calling functions    
+#==============================================================================
+testfile1  = '/Users/nneveu/Documents/DATA/TBA(1-13-16)/DriveOn_WSPE2_WD1_1p756.dat'
+testfile2 = '/Users/nneveu/Documents/DATA/TBA(1-13-16)/DriveOff_WSPE2_WD1_1p51.dat'
+
+(dx, dy, Nframes, imArray) = readimage(testfile2)
+#print "Dx,Dy,NFrames= ",dx,dy,Nframes
+
+#crop = edgeDetection(imArray)
+img = difilter(imArray[:,:,0]) 
+mask = edgeDetection(imArray[:,:,0], 10, 120)
+
+plt.figure()
+plt.imshow(mask, cmap='copper') 
+#==============================================================================
+# Plotting distribution of beam 
+# fitxtest, fitytest = fit(imArray[:,:,0], dx, dy, oneframe=1 )
+# fitx, fity         = fit(img, dx, dy, oneframe=1 )
+# (fit_x, fit_y)      = fit(crop, len(crop[:,0]), len(crop[0,:]), oneframe=1)
 # plt.figure()
 # plt.plot(fit_x, 'g', label= 'x fit')
 # plt.legend()
@@ -140,9 +150,15 @@ plt.imshow(image, cmap='copper')
 # plt.figure()
 #==============================================================================
 
+#==============================================================================
+# for i in xrange(100):
+#     image = imArray[:,:,i]
+#     newim = difilter(image)
+#     #plt.figure()
+#     #plt.imshow(newim) #Showing 100 images kills kernal
+#==============================================================================
 #print f1.min(), f1.max(), f1.mean()
-
-#edges = sobel(image)  
+ 
 #==============================================================================
 # fig, ax = plt.subplots(ncols=1, nrows=1, figsize=(5, 2))
 # 
@@ -176,50 +192,29 @@ plt.imshow(image, cmap='copper')
 #plt.imshow(denoise_bilateral(image, multichannel=False))#, sigma_range=0.1, sigma_spatial=15))
 #plt.savefig('denoise.pdf')
 
-
 #==============================================================================
-# REALLY GOOD EDGE DETECTION 
-# image = f1
-# edge_roberts = roberts(image)
-# edge_sobel = sobel(image)
 # 
-# fig, ax = plt.subplots(ncols=2, sharex=True, sharey=True, figsize=(8, 4))
+# #==============================================================================
+# # mask   = (f1<52)+0.0                  
+# # image_result = inpaint.inpaint_biharmonic(f1, mask)#, multichannel=True)
+# # i = scipy.ndimage.map_coordinates(z, np.vstack((x,y)))
+# #Need to flip x and y values in this array
+# #x, y = np.mgrid[640:0:-1, 480:0:-1]
+# #plt.pcolor(x,y, f1, cmap='RdBu', vmin=np.min(f1), vmax=np.max(f1))
+# #plt.pcolormesh(x,y, f1, cmap='copper', norm=LogNorm(vmin=1, vmax=np.max(f1)))
 # 
-# ax[0].imshow(edge_roberts, cmap=plt.cm.gray)
-# ax[0].set_title('Roberts Edge Detection')
-# 
-# ax[1].imshow(edge_sobel, cmap=plt.cm.gray)
-# ax[1].set_title('Sobel Edge Detection')
-# 
-# for a in ax:
-#     a.axis('off')
-# 
-# plt.tight_layout()
-# plt.savefig('test2.pdf')
-#==============================================================================
-
-
-#==============================================================================
-# mask   = (f1<52)+0.0                  
+# #plt.imshow(f1, cmap='RdBu')
+# #Using inpaint to get rid of interlacing
+# f1 = img
+# mask   = (f1<160)+0.0                  
 # image_result = inpaint.inpaint_biharmonic(f1, mask)#, multichannel=True)
-#==============================================================================
-
-#==============================================================================
-#zi = scipy.ndimage.map_coordinates(z, np.vstack((x,y)))
-#Using inpaint to get rid of interlacing
-#mask   = (f1<160)+0.0                  
-#image_result = inpaint.inpaint_biharmonic(f1, mask)#, multichannel=True)
 # plt.imshow(f1)
-# plt.savefig('test1.pdf')
+# plt.savefig('test5.pdf')
+# #plt.imshow(f1, interpolation='mitchell')  
+# #==============================================================================
 #==============================================================================
-#plt.imshow(f1, interpolation='mitchell')  
 
-#Need to flip x and y values in this array
-#x, y = np.mgrid[640:0:-1, 480:0:-1]
-#plt.pcolor(x,y, f1, cmap='RdBu', vmin=np.min(f1), vmax=np.max(f1))
-#plt.pcolormesh(x,y, f1, cmap='copper', norm=LogNorm(vmin=1, vmax=np.max(f1)))
 
-#plt.imshow(f1, cmap='RdBu')
 
 
 #cmap colors:
