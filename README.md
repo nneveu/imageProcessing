@@ -5,7 +5,7 @@ JP was here
 
 chapter 1
 author John
-this is a sentence ion chapter 1
+this is a sentence in chapter 1
 
 
 chatper 2
