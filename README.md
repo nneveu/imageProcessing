@@ -6,6 +6,7 @@ JP was here
 chapter 1
 author John
 this is a sentence in chapter 1
+trying to see what git diff does
 
 
 chatper 2

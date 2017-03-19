@@ -2,7 +2,7 @@
 """
 Created on Wed Nov 02 09:57:59 2016
 
-@author: nneveu
+@author: nneveu (the best!)
 
 Load YAG screen images.
 
