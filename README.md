@@ -1,4 +1,5 @@
-# imageProcessing
+#
+imageProcessing
 Attempt to port AWA matlab image processing code to python.
 JP was here
 
@@ -16,4 +17,4 @@ Editing the file....
 
 chapter 3
 JP has add a new chapter called chapter 3
-This chapter is not very interesting
+
