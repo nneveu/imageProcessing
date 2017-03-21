@@ -1,7 +1,8 @@
 #
-imageProcessing
+
+/note {sound processing}
 Attempt to port AWA matlab image processing code to python.
-JP was here
+JP was not here
 
 
 chapter 1
