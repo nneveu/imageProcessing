@@ -7,8 +7,7 @@ Created on Wed Nov 02 09:57:59 2016
 Load YAG screen images.
 
 """
-from scipy.ndimage import gaussian_filter
-from scipy import ndimage as ndi
+from scipy.ndimage import gaussian_filter, median_filter
 from skimage import feature
 from skimage.filters import roberts, sobel, scharr, prewitt
 from skimage.restoration import denoise_tv_chambolle, denoise_bilateral
@@ -22,7 +21,7 @@ from skimage.transform import hough_circle
 from skimage.feature import peak_local_max, canny
 from skimage.draw import circle_perimeter
 from skimage.util import img_as_ubyte
-import skimage 
+
 
 def readimage(imagefile):
     #This function reads in image data
@@ -54,11 +53,12 @@ def view_each_frame(image_array):
     # If you want to stop looking at the images
     # before reaching the end of the file, 
     # use CTRL+C to stop the python file execution.
-    for i in range(0,len(image_array[0,0,:])):
-        print len(image_array[0,0,:])
+    for i in range(0,1):#len(image_array[0,0,:])):
+        #print len(image_array[0,0,:])
         image = image_array[:,:,i]
+        di_image = difilter(image)
         plt.figure()
-        plt.imshow(image)
+        plt.imshow(di_image)
         plt.show()        
 
     
@@ -93,9 +93,15 @@ def fit(imagesArray, dx, dy, oneframe=1 ):
     #plt.plot(fity, '-')
     
 #Deinterlace and filter
-def difilter(image):
-    #Only does guassian filter
-    filtered_image = gaussian_filter(image, 1) #order 1 looks best?
+def difilter(image, use_filter='median'):
+    if use_filter == 'median':
+        #Median averages across two pixels
+        #Better for salt and pepper background
+        filtered_image = median_filter(image,2)
+
+    else:
+        #Guassian filter not good for salt and pepper background
+        filtered_image = gaussian_filter(image, 1) #order 1 looks best?
 
     return(filtered_image)
     
@@ -143,30 +149,14 @@ def edgeDetection(image, lowThres, highThres):
 #crop = hold[:, (hold != 0).sum(axis=0) >= 1] 
     return(mask)
 
-#==============================================================================
-# Main, calling functions    
-#==============================================================================
-#testfile1  = '/Users/nneveu/Documents/DATA/TBA(1-13-16)/DriveOn_WSPE2_WD1_1p756.dat'
-testfile2 = '/home/nicole/Documents/thesis_code/data_analysis/gun_L1-L6_YAG6_FWHM1pt5_M250_R8pt5_GPhase-20_09-20-2017.dat'
-
-yag1 = '../gun_L1-L6_YAG1_FWHM1pt5_M185_R-_GPhase-20_09-22-2017.dat'
-
-(dx, dy, Nframes, image_array) = readimage(testfile2)
-print "Dx,Dy,NFrames= ",dx,dy,Nframes
-
-view_each_frame(image_array)
 
 
-#Look at each image indiviually
-    #newim = difilter(image)
 #crop = edgeDetection(imArray)
 #mg = difilter(imArray[:,:,0]) 
 #ask = edgeDetection(imArray[:,:,0], 10, 120)
 
 #plt.figure()
 #plt.imshow(mask, cmap='copper') 
-
-
 
 #==============================================================================
 # Plotting distribution of beam 
