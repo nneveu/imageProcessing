@@ -1,10 +1,16 @@
 # -*- coding: utf-8 -*-
 """
 Created on Wed Nov 02 09:57:59 2016
+Updated on Fri Sep 23 
 
 @author: nneveu (the best!)
 
 Load YAG screen images.
+
+Sources include:
+Wiki
+Scipy man pages
+Stack Overflow
 
 """
 from scipy.ndimage import gaussian_filter, median_filter
@@ -53,7 +59,7 @@ def view_each_frame(image_array):
     # If you want to stop looking at the images
     # before reaching the end of the file, 
     # use CTRL+C to stop the python file execution.
-    for i in range(0,1):#len(image_array[0,0,:])):
+    for i in range(10):#,len(image_array[0,0,:])):
         #print len(image_array[0,0,:])
         image = image_array[:,:,i]
         di_image = difilter(image)
@@ -61,7 +67,31 @@ def view_each_frame(image_array):
         plt.imshow(di_image)
         plt.show()        
 
+
+def average_images(image_array, dx, dy):
+    #This function takes all images in 
+    # image array and averages them to 
+    # create one image
+    # https://stackoverflow.com/questions/17291455/how-to-get-an-average-picture-from-100-pictures-using-pil
+
+    #Array that will hold final image
+    ave_image = np.zeros((dx,dy), np.float)
     
+    for image in range(0, len(image_array[0,0,:])):
+        hold = np.array(image, dtype=np.float)        
+        
+    
+
+
+
+
+
+def remove_outlier_images(images, bad_image_locs):
+    clean_images = 0
+
+    return clean_images
+
+
 def fit(imagesArray, dx, dy, oneframe=1 ):
     # At the moment, this function is only finding the fit for one 
     # dimension (y), and one frame (frame 1). 
