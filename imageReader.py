@@ -13,12 +13,15 @@ Scipy man pages
 Stack Overflow
 
 """
+
+import numpy as np
+import matplotlib.pyplot as plt
 from scipy.ndimage import gaussian_filter, median_filter
+from skimage.measure import compare_ssim as ssim
+
 from skimage import feature
 from skimage.filters import roberts, sobel, scharr, prewitt
 from skimage.restoration import denoise_tv_chambolle, denoise_bilateral
-import numpy as np
-import matplotlib.pyplot as plt
 from skimage.restoration import inpaint
 from lmfit.models import GaussianModel
 from matplotlib.colors import LogNorm
@@ -52,7 +55,32 @@ def readimage(imagefile):
     #print images
     images_array = np.reshape(images,(dx, dy, -1), order='F')
 
-    return(dx, dy, Nframes, images_array)    
+    return(dx, dy, Nframes, images_array)  
+
+
+def difilter(image_array, use_filter='median'):
+    #Deinterlace and filter
+    # Applies a median filter to all images 
+    # in image_array. Returns an array that is 
+    # the same shape and size as input array 
+
+    filtered_image = np.empty_like(image_array)    
+    #Finding number of frames 
+    Nframes = len(image_array[0,0,:])
+    #Using filter on all frames
+
+    for i in range(0,Nframes):
+        if use_filter == 'median':
+            #Median averages across two pixels
+            #Better for salt and pepper background
+            filtered_image[:,:,i] = median_filter(image_array[:,:,i],2)
+
+        else:
+            #Guassian filter not good for salt and pepper background
+            filtered_image[:,:,i] = gaussian_filter(image_array[:,:,i], 1) #order 1 looks best?
+
+    return(filtered_image)  
+
    
 def view_each_frame(image_array): 
     #This function shows each frame one by one
@@ -68,25 +96,56 @@ def view_each_frame(image_array):
         plt.show()        
 
 
-def average_images(image_array, dx, dy):
+def average_images(image_array):
     #This function takes all images in 
     # image array and averages them to 
     # create one image
     # https://stackoverflow.com/questions/17291455/how-to-get-an-average-picture-from-100-pictures-using-pil
 
+    #Find dimensions of array
+    dx = len(image_array[:,0,0])
+    dy = len(image_array[0,:,0])
+    #print dx, dy
+
     #Array that will hold final image
     ave_image = np.zeros((dx,dy), np.float)
+    #Number of frames to average over
+    Nframes = len(image_array[0,0,:])
     
-    for image in range(0, len(image_array[0,0,:])):
+    for i in range(0, Nframes):
+        image = image_array[:,:,i]
         hold = np.array(image, dtype=np.float)        
+        ave_image = ave_image + hold/Nframes
         
+    ave_image = np.array(np.round(ave_image), dtype=np.uint16)    
+    plt.imshow(ave_image)
+    plt.show()
+
+    return ave_image
+
+
+def background_subtraction(image_array, background_image):
+    #Find dimensions of array
+    #dx = len(image_array[:,0,0])
+    #dy = len(image_array[0,:,0])
+
+    no_background_image = np.empty_like(image_array)
     
 
+    return no_background_image 
+
+def similarity_check(image_array):
+    #http://scikit-image.org/docs/dev/auto_examples/transform/plot_ssim.html
+    Nframes = len(image_array[0,0,:])
+    s_ave  = 0
+    for i in range(0,Nframes):
+        s = ssim(image_array[:,:,0], image_array[:,:,i])
+        s_ave = s_ave + s/Nframes 
+            
+    return s_ave
 
 
-
-
-def remove_outlier_images(images, bad_image_locs):
+def select_on_charge(images, bad_image_locs):
     clean_images = 0
 
     return clean_images
@@ -120,21 +179,7 @@ def fit(imagesArray, dx, dy, oneframe=1 ):
         fit_y[i] = np.sum(line)
          
     return (fit_x, fit_y)
-    #plt.plot(fity, '-')
-    
-#Deinterlace and filter
-def difilter(image, use_filter='median'):
-    if use_filter == 'median':
-        #Median averages across two pixels
-        #Better for salt and pepper background
-        filtered_image = median_filter(image,2)
-
-    else:
-        #Guassian filter not good for salt and pepper background
-        filtered_image = gaussian_filter(image, 1) #order 1 looks best?
-
-    return(filtered_image)
-    
+    #plt.plot(fity, '-') 
     
 def edgeDetection(image, lowThres, highThres):
 #Only looks at one image right now
