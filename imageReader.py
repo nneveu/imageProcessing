@@ -1,19 +1,27 @@
 # -*- coding: utf-8 -*-
 """
 Created on Wed Nov 02 09:57:59 2016
+Updated on Fri Sep 23 
 
 @author: nneveu (the best!)
 
 Load YAG screen images.
 
+Sources include:
+Wiki
+Scipy man pages
+Stack Overflow
+
 """
-from scipy.ndimage import gaussian_filter
-from scipy import ndimage as ndi
+
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.ndimage import gaussian_filter, median_filter
+from skimage.measure import compare_ssim as ssim
+
 from skimage import feature
 from skimage.filters import roberts, sobel, scharr, prewitt
 from skimage.restoration import denoise_tv_chambolle, denoise_bilateral
-import numpy as np
-import matplotlib.pyplot as plt
 from skimage.restoration import inpaint
 from lmfit.models import GaussianModel
 from matplotlib.colors import LogNorm
@@ -22,24 +30,127 @@ from skimage.transform import hough_circle
 from skimage.feature import peak_local_max, canny
 from skimage.draw import circle_perimeter
 from skimage.util import img_as_ubyte
-import skimage 
+
 
 def readimage(imagefile):
+    #This function reads in image data
+    # It assumes the first three bits are the 
+    # Horizontal size (X), Vertical size (Y),
+    # and number of frames (Nframes) respectively
     
-    images  = np.fromfile(imagefile, dtype=np.uint16, count=-1,sep='')
+    # count=-1 -> reads all data
+    # sep='' -> read file as binary
+    
     # header info vert/horiz pixels and number of frames
-    dx      = int(images[0])
-    dy      = int(images[1])
-    Nframes = int(images[2])
-    hold    = images[4:] # skipping header info
+    header  = np.fromfile(imagefile, dtype=np.uint16, count=5,sep='')
+    dx      = int(header[0])
+    dy      = int(header[1])
+    Nframes = int(header[2])
+    length  = dx*dy*Nframes    
+    images  = (np.fromfile(imagefile, dtype=np.uint16, count=-1,sep=''))[6:]
     #==========================================================
     #Reading images into 3D array 
     # X by Y by Frame Number
-    imagesArray = np.reshape(hold,(dx, dy, -1), order='F')
+    #print header 
+    #print images
+    images_array = np.reshape(images,(dx, dy, -1), order='F')
 
-    return(dx, dy, Nframes, imagesArray)    
+    return(dx, dy, Nframes, images_array)  
+
+
+def difilter(image_array, use_filter='median'):
+    #Deinterlace and filter
+    # Applies a median filter to all images 
+    # in image_array. Returns an array that is 
+    # the same shape and size as input array 
+
+    filtered_image = np.empty_like(image_array)    
+    #Finding number of frames 
+    Nframes = len(image_array[0,0,:])
+    #Using filter on all frames
+
+    for i in range(0,Nframes):
+        if use_filter == 'median':
+            #Median averages across two pixels
+            #Better for salt and pepper background
+            filtered_image[:,:,i] = median_filter(image_array[:,:,i],2)
+
+        else:
+            #Guassian filter not good for salt and pepper background
+            filtered_image[:,:,i] = gaussian_filter(image_array[:,:,i], 1) #order 1 looks best?
+
+    return(filtered_image)  
+
+   
+def view_each_frame(image_array): 
+    #This function shows each frame one by one
+    # If you want to stop looking at the images
+    # before reaching the end of the file, 
+    # use CTRL+C to stop the python file execution.
+    for i in range(10):#,len(image_array[0,0,:])):
+        #print len(image_array[0,0,:])
+        image = image_array[:,:,i]
+        di_image = difilter(image)
+        plt.figure()
+        plt.imshow(di_image)
+        plt.show()        
+
+
+def average_images(image_array):
+    #This function takes all images in 
+    # image array and averages them to 
+    # create one image
+    # https://stackoverflow.com/questions/17291455/how-to-get-an-average-picture-from-100-pictures-using-pil
+
+    #Find dimensions of array
+    dx = len(image_array[:,0,0])
+    dy = len(image_array[0,:,0])
+    #print dx, dy
+
+    #Array that will hold final image
+    ave_image = np.zeros((dx,dy), np.float)
+    #Number of frames to average over
+    Nframes = len(image_array[0,0,:])
     
+    for i in range(0, Nframes):
+        image = image_array[:,:,i]
+        hold = np.array(image, dtype=np.float)        
+        ave_image = ave_image + hold/Nframes
+        
+    ave_image = np.array(np.round(ave_image), dtype=np.uint16)    
+    plt.imshow(ave_image)
+    plt.show()
+
+    return ave_image
+
+
+def background_subtraction(image_array, background_image):
+    #Find dimensions of array
+    #dx = len(image_array[:,0,0])
+    #dy = len(image_array[0,:,0])
+
+    no_background_image = np.empty_like(image_array)
     
+
+    return no_background_image 
+
+def similarity_check(image_array):
+    #http://scikit-image.org/docs/dev/auto_examples/transform/plot_ssim.html
+    Nframes = len(image_array[0,0,:])
+    s_ave  = 0
+    for i in range(0,Nframes):
+        s = ssim(image_array[:,:,0], image_array[:,:,i])
+        s_ave = s_ave + s/Nframes 
+            
+    return s_ave
+
+
+def select_on_charge(images, bad_image_locs):
+    clean_images = 0
+
+    return clean_images
+
+
 def fit(imagesArray, dx, dy, oneframe=1 ):
     # At the moment, this function is only finding the fit for one 
     # dimension (y), and one frame (frame 1). 
@@ -68,15 +179,7 @@ def fit(imagesArray, dx, dy, oneframe=1 ):
         fit_y[i] = np.sum(line)
          
     return (fit_x, fit_y)
-    #plt.plot(fity, '-')
-    
-#Deinterlace and filter
-def difilter(image):
-    #Only does guassian filter
-    filtered_image = gaussian_filter(image, 1) #order 1 looks best?
-
-    return(filtered_image)
-    
+    #plt.plot(fity, '-') 
     
 def edgeDetection(image, lowThres, highThres):
 #Only looks at one image right now
@@ -121,21 +224,15 @@ def edgeDetection(image, lowThres, highThres):
 #crop = hold[:, (hold != 0).sum(axis=0) >= 1] 
     return(mask)
 
-#==============================================================================
-# Main, calling functions    
-#==============================================================================
-testfile1  = '/Users/nneveu/Documents/DATA/TBA(1-13-16)/DriveOn_WSPE2_WD1_1p756.dat'
-testfile2 = '/Users/nneveu/Documents/DATA/TBA(1-13-16)/DriveOff_WSPE2_WD1_1p51.dat'
 
-(dx, dy, Nframes, imArray) = readimage(testfile2)
-#print "Dx,Dy,NFrames= ",dx,dy,Nframes
 
 #crop = edgeDetection(imArray)
-img = difilter(imArray[:,:,0]) 
-mask = edgeDetection(imArray[:,:,0], 10, 120)
+#mg = difilter(imArray[:,:,0]) 
+#ask = edgeDetection(imArray[:,:,0], 10, 120)
 
-plt.figure()
-plt.imshow(mask, cmap='copper') 
+#plt.figure()
+#plt.imshow(mask, cmap='copper') 
+
 #==============================================================================
 # Plotting distribution of beam 
 # fitxtest, fitytest = fit(imArray[:,:,0], dx, dy, oneframe=1 )
@@ -150,13 +247,6 @@ plt.imshow(mask, cmap='copper')
 # plt.figure()
 #==============================================================================
 
-#==============================================================================
-# for i in xrange(100):
-#     image = imArray[:,:,i]
-#     newim = difilter(image)
-#     #plt.figure()
-#     #plt.imshow(newim) #Showing 100 images kills kernal
-#==============================================================================
 #print f1.min(), f1.max(), f1.mean()
  
 #==============================================================================
