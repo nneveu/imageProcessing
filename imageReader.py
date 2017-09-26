@@ -19,6 +19,7 @@ import matplotlib.pyplot as plt
 from scipy.ndimage import gaussian_filter, median_filter
 from skimage.measure import compare_ssim as ssim
 
+
 from skimage import feature
 from skimage.filters import roberts, sobel, scharr, prewitt
 from skimage.restoration import denoise_tv_chambolle, denoise_bilateral
@@ -65,8 +66,11 @@ def difilter(image_array, use_filter='median'):
     # the same shape and size as input array 
 
     filtered_image = np.empty_like(image_array)    
-    #Finding number of frames 
-    Nframes = len(image_array[0,0,:])
+    #Finding number of frames
+    try: 
+        Nframes = len(image_array[0,0,:])
+    except:
+        Nframes = 1 
     #Using filter on all frames
 
     for i in range(0,Nframes):
@@ -87,9 +91,16 @@ def view_each_frame(image_array):
     # If you want to stop looking at the images
     # before reaching the end of the file, 
     # use CTRL+C to stop the python file execution.
-    for i in range(10):#,len(image_array[0,0,:])):
-        #print len(image_array[0,0,:])
-        image = image_array[:,:,i]
+    try:
+        for i in range(10):#,len(image_array[0,0,:])):
+            #print len(image_array[0,0,:])
+            image = image_array[:,:,i]
+            di_image = difilter(image)
+            plt.figure()
+            plt.imshow(di_image)
+            plt.show()
+    except:
+        image = image_array
         di_image = difilter(image)
         plt.figure()
         plt.imshow(di_image)
@@ -119,7 +130,9 @@ def average_images(image_array):
         
     ave_image = np.array(np.round(ave_image), dtype=np.uint16)    
     plt.imshow(ave_image)
+    plt.colorbar()
     plt.show()
+    plt.savefig('average_no_background.pdf')
 
     return ave_image
 
@@ -128,10 +141,29 @@ def background_subtraction(image_array, background_image):
     #Find dimensions of array
     #dx = len(image_array[:,0,0])
     #dy = len(image_array[0,:,0])
-
+    #Nframes = len(image_array[0,0,:])
     no_background_image = np.empty_like(image_array)
-    
+    float_back = np.array(background_image, dtype=np.float)
+ 
+    try:  
+        Nframes = len(image_array[0,0,:])
+        for i in range(0,Nframes):
+            float_im   = np.array(image_array[:,:,i], dtype=np.float)
+            no_background_image[:,:,i] = np.clip(float_im - float_back, 0, 1024)
 
+    #print 'max image', np.max(image_array)
+    #print 'max back', np.max(background_image)
+
+    except: 
+        float_im = np.array(image_array, dtype=np.float)
+        no_background_image = np.clip(float_im - float_back, 0, None)
+    
+    no_background_image = np.array(np.round(no_background_image), dtype=np.uint16) 
+    no_background_image = np.clip(no_background_image, 0, 1024)
+    
+    implot = plt.imshow(no_background_image[:,:,i])
+    plt.colorbar()
+    plt.show()
     return no_background_image 
 
 def similarity_check(image_array):
