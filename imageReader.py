@@ -138,6 +138,7 @@ def average_images(image_array):
 
 
 def background_subtraction(image_array, background_image):
+    #https://www.raspberrypi.org/forums/viewtopic.php?t=38239&p=316837
     #Find dimensions of array
     #dx = len(image_array[:,0,0])
     #dy = len(image_array[0,:,0])
