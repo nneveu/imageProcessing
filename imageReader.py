@@ -152,7 +152,7 @@ def background_subtraction(image_array, background_image):
         for i in range(0,Nframes):
             float_im   = np.array(image_array[:,:,i], dtype=np.float)
             no_background_image[:,:,i] = np.clip(float_im - float_back, 0, 1024)
-
+            implot = plt.imshow(no_background_image[:,:,i])
     #print 'max image', np.max(image_array)
     #print 'max back', np.max(background_image)
 
@@ -163,7 +163,7 @@ def background_subtraction(image_array, background_image):
     no_background_image = np.array(np.round(no_background_image), dtype=np.uint16) 
     no_background_image = np.clip(no_background_image, 0, 1024)
     
-    implot = plt.imshow(no_background_image[:,:,i])
+    implot = plt.imshow(no_background_image)
     plt.colorbar()
     plt.show()
     return no_background_image 
@@ -260,13 +260,19 @@ def fiducial_calc(image, sigma=0.25, min_r=0.25, max_r=0.5, YAG_D=44.45):
     
     #Find mean of radii
     radius = np.mean(radii)
-    print radius
+    print "radii", radii, "radius", radius
     #Radii of YAG can give us fiducial
     YAG_r = YAG_D / 2
     fiducial = YAG_r / radius
 
     return(fiducial)
-    
+   
+def remove_beam(image, percent_threshold=0.8):
+
+    max_val = np.max(image)
+    image[image > max_val*percent_threshold] = 0
+    return (image)
+ 
 def createCircularMask(h, w, center=None, radius=None):
     #https://stackoverflow.com/questions/44865023/circular-masking-an-image-in-python-using-numpy-arrays
     #mask = createCircularMask(dy, dx, center=[cy,cx], radius=np.mean(radii))
