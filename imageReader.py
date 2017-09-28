@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Created on Wed Nov 02 09:57:59 2016
-Updated on Fri Sep 23 
+Updated on Fri Sep 23-27 
 
 @author: nneveu (the best!)
 
@@ -21,15 +21,7 @@ from skimage.measure import compare_ssim as ssim
 from skimage.transform import hough_circle, hough_circle_peaks
 from skimage.feature import canny
 from skimage.draw import circle_perimeter
-from skimage.util import img_as_ubyte
-
 from skimage import measure, filters, segmentation 
-
-from skimage.filters import roberts, sobel, scharr, prewitt
-from skimage.restoration import denoise_tv_chambolle, denoise_bilateral
-from skimage.restoration import inpaint
-from lmfit.models import GaussianModel
-from matplotlib.colors import LogNorm
 from skimage import data, color
 
 
@@ -223,7 +215,7 @@ def fit(imagesArray, dx, dy, oneframe=1 ):
     return (fit_x, fit_y)
     #plt.plot(fity, '-') 
     
-def edgeDetection(image, sigma=0.25, min_r=0.25, max_r=0.5):
+def fiducial_calc(image, sigma=0.25, min_r=0.25, max_r=0.5, YAG_D=44.45):
     #min/max_r = guess at min radius size, in terms of percentage of pixels
     #This number will be used to search for yag screen. 
     #So, if YAG is about or larger than half the screen, 0,.25 is a good
@@ -231,6 +223,8 @@ def edgeDetection(image, sigma=0.25, min_r=0.25, max_r=0.5):
 
     #http://scikit-image.org/docs/dev/auto_examples/edges/plot_circular_elliptical_hough_transform.html
     #https://www.pyimagesearch.com/2015/04/06/zero-parameter-automatic-canny-edge-detection-with-python-and-opencv/
+    #https://stackoverflow.com/questions/44865023/circular-masking-an-image-in-python-using-numpy-arrays
+
     #Only looks at one image right now
     dx, dy = image.shape
 
@@ -240,14 +234,16 @@ def edgeDetection(image, sigma=0.25, min_r=0.25, max_r=0.5):
     upper = int(min(1024, (1.0 + sigma) * v))
     edges = canny(image, sigma=1, low_threshold=lower, high_threshold=upper)
 
+    #Making array of possible radius values 
+    #for YAG screen in pixels
     lower_limit = int(max(dx,dy)*min_r)
     upper_limit = int(max(dx,dy)*max_r)
-    print lower_limit, upper_limit 
     hough_radii = np.arange(lower_limit, upper_limit, 1)
-    print hough_radii
+    
+    #Hough transform accumulator  
     hough_res = hough_circle(edges, hough_radii)    
-    # Select the most prominent 5 circles
-    accums, cx, cy, radii = hough_circle_peaks(hough_res, hough_radii,total_num_peaks=5)
+    # Select the most prominent 3 circles
+    accums, cx, cy, radii = hough_circle_peaks(hough_res, hough_radii,total_num_peaks=3)
     # Draw them
     fig, ax = plt.subplots(ncols=1, nrows=1, figsize=(10, 2))
     image2 = color.gray2rgb(image) 
@@ -258,12 +254,22 @@ def edgeDetection(image, sigma=0.25, min_r=0.25, max_r=0.5):
 
     ax.imshow(image2)
     plt.show()
-    print accums, radii, cx, cy
+    #plt.imshow(hough_res[-1])
+    #plt.show()
+    #print accums, radii, cx, cy
     
-    #mask = createCircularMask(dy, dx, center=[cy,cx], radius=np.mean(radii))
-    
+    #Find mean of radii
+    radius = np.mean(radii)
+    print radius
+    #Radii of YAG can give us fiducial
+    YAG_r = YAG_D / 2
+    fiducial = YAG_r / radius
+
+    return(fiducial)
     
 def createCircularMask(h, w, center=None, radius=None):
+    #https://stackoverflow.com/questions/44865023/circular-masking-an-image-in-python-using-numpy-arrays
+    #mask = createCircularMask(dy, dx, center=[cy,cx], radius=np.mean(radii))
 
     if center is None: # use the middle of the image
         center = [int(w/2), int(h/2)]
@@ -330,28 +336,6 @@ def createCircularMask(h, w, center=None, radius=None):
  
 #==============================================================================
 # fig, ax = plt.subplots(ncols=1, nrows=1, figsize=(5, 2))
-# 
-# centers = []
-# accums = []
-# radii = []
-# 
-# for radius, h in zip(hough_radii, hough_res):
-#     # For each radius, extract two circles
-#     num_peaks = 2
-#     peaks = peak_local_max(h, num_peaks=num_peaks)
-#     centers.extend(peaks)
-#     accums.extend(h[peaks[:, 0], peaks[:, 1]])
-#     radii.extend([radius] * num_peaks)
-# 
-# # Draw the most prominent 5 circles
-# #image = color.gray2rgb(image)
-# for idx in np.argsort(accums)[::-1][:5]:
-#     center_x, center_y = centers[idx]
-#     radius = radii[idx]
-#     cx, cy = circle_perimeter(center_y, center_x, radius)
-#     image[cy, cx] = (220, 20, 20)
-# 
-# ax.imshow(image, cmap=plt.cm.gray)
 #==============================================================================
 
 #plt.imshow(denoise_bilateral(image, multichannel=False))#, sigma_range=0.1, sigma_spatial=15))
@@ -368,15 +352,6 @@ def createCircularMask(h, w, center=None, radius=None):
 # #plt.pcolor(x,y, f1, cmap='RdBu', vmin=np.min(f1), vmax=np.max(f1))
 # #plt.pcolormesh(x,y, f1, cmap='copper', norm=LogNorm(vmin=1, vmax=np.max(f1)))
 # 
-# #plt.imshow(f1, cmap='RdBu')
-# #Using inpaint to get rid of interlacing
-# f1 = img
-# mask   = (f1<160)+0.0                  
-# image_result = inpaint.inpaint_biharmonic(f1, mask)#, multichannel=True)
-# plt.imshow(f1)
-# plt.savefig('test5.pdf')
-# #plt.imshow(f1, interpolation='mitchell')  
-# #==============================================================================
 #==============================================================================
 
 
