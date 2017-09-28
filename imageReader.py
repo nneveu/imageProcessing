@@ -131,7 +131,7 @@ def average_images(image_array):
         
     ave_image = np.array(np.round(ave_image), dtype=np.uint16)    
     plt.imshow(ave_image)
-    plt.colorbar()
+    #plt.colorbar()
     #plt.show()
     plt.savefig('average_no_background.pdf')
 
@@ -271,6 +271,8 @@ def remove_beam(image, percent_threshold=0.8):
 
     max_val = np.max(image)
     image[image > max_val*percent_threshold] = 0
+    plt.imshow(image)
+    plt.show()
     return (image)
  
 def createCircularMask(h, w, center=None, radius=None):
