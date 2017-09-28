@@ -18,19 +18,17 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.ndimage import gaussian_filter, median_filter
 from skimage.measure import compare_ssim as ssim
+from skimage.transform import hough_circle, hough_circle_peaks
+from skimage.feature import canny
+from skimage.draw import circle_perimeter
+from skimage.util import img_as_ubyte
 
-
-from skimage import feature
 from skimage.filters import roberts, sobel, scharr, prewitt
 from skimage.restoration import denoise_tv_chambolle, denoise_bilateral
 from skimage.restoration import inpaint
 from lmfit.models import GaussianModel
 from matplotlib.colors import LogNorm
 from skimage import data, color
-from skimage.transform import hough_circle
-from skimage.feature import peak_local_max, canny
-from skimage.draw import circle_perimeter
-from skimage.util import img_as_ubyte
 
 
 def readimage(imagefile):
@@ -67,21 +65,26 @@ def difilter(image_array, use_filter='median'):
 
     filtered_image = np.empty_like(image_array)    
     #Finding number of frames
-    try: 
+    try:
+        #x,y,Nframes = image_array.shape 
         Nframes = len(image_array[0,0,:])
-    except:
-        Nframes = 1 
-    #Using filter on all frames
+        for i in range(0,Nframes):
+            if use_filter == 'median':
+                filtered_image[:,:,i] = median_filter(image_array[:,:,i],2)
+            else:
+                filtered_image[:,:,i] = gaussian_filter(image_array[:,:,i], 1) #order 1 looks best? 
 
-    for i in range(0,Nframes):
+    except: 
+    #Using filter on all frames
+        
         if use_filter == 'median':
             #Median averages across two pixels
             #Better for salt and pepper background
-            filtered_image[:,:,i] = median_filter(image_array[:,:,i],2)
+            filtered_image = median_filter(image_array,2)
 
         else:
             #Guassian filter not good for salt and pepper background
-            filtered_image[:,:,i] = gaussian_filter(image_array[:,:,i], 1) #order 1 looks best?
+            filtered_image = gaussian_filter(image_array, 1) #order 1 looks best?
 
     return(filtered_image)  
 
@@ -91,21 +94,24 @@ def view_each_frame(image_array):
     # If you want to stop looking at the images
     # before reaching the end of the file, 
     # use CTRL+C to stop the python file execution.
+    print image_array.shape
+
     try:
-        for i in range(10):#,len(image_array[0,0,:])):
-            #print len(image_array[0,0,:])
+        #x,y,z = image_array.shape
+        Nframes = len(image_array[0,0,:])
+        for i in range(0,Nframes):
             image = image_array[:,:,i]
             di_image = difilter(image)
             plt.figure()
             plt.imshow(di_image)
             plt.show()
+
     except:
         image = image_array
         di_image = difilter(image)
         plt.figure()
         plt.imshow(di_image)
-        plt.show()        
-
+        plt.show()
 
 def average_images(image_array):
     #This function takes all images in 
@@ -216,10 +222,12 @@ def fit(imagesArray, dx, dy, oneframe=1 ):
     
 def edgeDetection(image, lowThres, highThres):
 #Only looks at one image right now
+    edges = canny(image, sigma=3, low_threshold=lowThres, high_threshold=highThres)
+    #mask = canny(image, sigma=5, low_threshold=lowThres, high_threshold=highThres)
+    plt.imshow(edges)
+    plt.show()
 
-#Cropping
-#==============================================================================
-    mask = canny(image, sigma=5, low_threshold=lowThres, high_threshold=highThres)
+    hough_radii = np.arange(10, 480, 180)
 
 # #edges = roberts(image)
 # #edges = sobel(image)
@@ -255,16 +263,9 @@ def edgeDetection(image, lowThres, highThres):
 
 #hold = edges[yag]
 #crop = hold[:, (hold != 0).sum(axis=0) >= 1] 
-    return(mask)
-
-
+    #return(mask)
 
 #crop = edgeDetection(imArray)
-#mg = difilter(imArray[:,:,0]) 
-#ask = edgeDetection(imArray[:,:,0], 10, 120)
-
-#plt.figure()
-#plt.imshow(mask, cmap='copper') 
 
 #==============================================================================
 # Plotting distribution of beam 
