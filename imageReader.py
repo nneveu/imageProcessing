@@ -23,6 +23,8 @@ from skimage.feature import canny
 from skimage.draw import circle_perimeter
 from skimage.util import img_as_ubyte
 
+from skimage import measure, filters, segmentation 
+
 from skimage.filters import roberts, sobel, scharr, prewitt
 from skimage.restoration import denoise_tv_chambolle, denoise_bilateral
 from skimage.restoration import inpaint
@@ -120,14 +122,15 @@ def average_images(image_array):
     # https://stackoverflow.com/questions/17291455/how-to-get-an-average-picture-from-100-pictures-using-pil
 
     #Find dimensions of array
-    dx = len(image_array[:,0,0])
-    dy = len(image_array[0,:,0])
+    dx, dy, Nframes= image_array.shape
+    #dx = len(image_array[:,0,0])
+    #dy = len(image_array[0,:,0])
     #print dx, dy
 
     #Array that will hold final image
     ave_image = np.zeros((dx,dy), np.float)
     #Number of frames to average over
-    Nframes = len(image_array[0,0,:])
+    #Nframes = len(image_array[0,0,:])
     
     for i in range(0, Nframes):
         image = image_array[:,:,i]
@@ -137,7 +140,7 @@ def average_images(image_array):
     ave_image = np.array(np.round(ave_image), dtype=np.uint16)    
     plt.imshow(ave_image)
     plt.colorbar()
-    plt.show()
+    #plt.show()
     plt.savefig('average_no_background.pdf')
 
     return ave_image
@@ -172,7 +175,7 @@ def background_subtraction(image_array, background_image):
     plt.colorbar()
     plt.show()
     return no_background_image 
-
+#-------------------------------------------------------------------------------
 def similarity_check(image_array):
     #http://scikit-image.org/docs/dev/auto_examples/transform/plot_ssim.html
     Nframes = len(image_array[0,0,:])
@@ -220,17 +223,59 @@ def fit(imagesArray, dx, dy, oneframe=1 ):
     return (fit_x, fit_y)
     #plt.plot(fity, '-') 
     
-def edgeDetection(image, lowThres, highThres):
-#Only looks at one image right now
-    edges = canny(image, sigma=3, low_threshold=lowThres, high_threshold=highThres)
-    #mask = canny(image, sigma=5, low_threshold=lowThres, high_threshold=highThres)
-    plt.imshow(edges)
+def edgeDetection(image, sigma=0.25, min_r=0.25, max_r=0.5):
+    #min/max_r = guess at min radius size, in terms of percentage of pixels
+    #This number will be used to search for yag screen. 
+    #So, if YAG is about or larger than half the screen, 0,.25 is a good
+    # guess for the radius - i.e. radius is on scale of 1/4 size of image
+
+    #http://scikit-image.org/docs/dev/auto_examples/edges/plot_circular_elliptical_hough_transform.html
+    #https://www.pyimagesearch.com/2015/04/06/zero-parameter-automatic-canny-edge-detection-with-python-and-opencv/
+    #Only looks at one image right now
+    dx, dy = image.shape
+
+    v = np.median(image)
+    # apply automatic Canny edge detection using the computed median
+    lower = int(max(0, (1.0 - sigma) * v))
+    upper = int(min(1024, (1.0 + sigma) * v))
+    edges = canny(image, sigma=1, low_threshold=lower, high_threshold=upper)
+
+    lower_limit = int(max(dx,dy)*min_r)
+    upper_limit = int(max(dx,dy)*max_r)
+    print lower_limit, upper_limit 
+    hough_radii = np.arange(lower_limit, upper_limit, 1)
+    print hough_radii
+    hough_res = hough_circle(edges, hough_radii)    
+    # Select the most prominent 5 circles
+    accums, cx, cy, radii = hough_circle_peaks(hough_res, hough_radii,total_num_peaks=5)
+    # Draw them
+    fig, ax = plt.subplots(ncols=1, nrows=1, figsize=(10, 2))
+    image2 = color.gray2rgb(image) 
+    print image2.shape 
+    for center_y, center_x, radius in zip(cy, cx, radii):
+        circy, circx = circle_perimeter(center_y, center_x, radius)
+        image2[circy, circx] = (220, 20, 20)
+
+    ax.imshow(image2)
     plt.show()
+    print accums, radii, cx, cy
+    
+    #mask = createCircularMask(dy, dx, center=[cy,cx], radius=np.mean(radii))
+    
+    
+def createCircularMask(h, w, center=None, radius=None):
 
-    hough_radii = np.arange(10, 480, 180)
+    if center is None: # use the middle of the image
+        center = [int(w/2), int(h/2)]
+    if radius is None: # use the smallest distance between the center and image walls
+        radius = min(center[0], center[1], w-center[0], h-center[1])
 
-# #edges = roberts(image)
-# #edges = sobel(image)
+    Y, X = np.ogrid[:h, :w]
+    dist_from_center = np.sqrt((X - center[0])**2 + (Y-center[1])**2)
+
+    mask = dist_from_center <= radius
+    return mask
+
  
 # mask = rotate>0
 # rotate = skimage.transform.rotate(edges, 0.0, resize=True)
@@ -285,10 +330,6 @@ def edgeDetection(image, lowThres, highThres):
  
 #==============================================================================
 # fig, ax = plt.subplots(ncols=1, nrows=1, figsize=(5, 2))
-# 
-# # Detect two radii
-# hough_radii = np.arange(10, 480, 180)
-# hough_res = hough_circle(edges, hough_radii)
 # 
 # centers = []
 # accums = []
