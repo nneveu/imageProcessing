@@ -268,7 +268,8 @@ def fiducial_calc(image, sigma=0.25, min_r=0.25, max_r=0.5, YAG_D=44.45):
     return(fiducial)
    
 def remove_beam(image, percent_threshold=0.8):
-
+    #Removes brightest part of picture. 
+    #Higher threshold means less is removed.
     max_val = np.max(image)
     image[image > max_val*percent_threshold] = 0
     plt.imshow(image)
