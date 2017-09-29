@@ -96,7 +96,7 @@ def sdd_to_volts_array(ict_file):
     #print volts_array.shape
     return volts_array, cal_array
 
-def ict_charge(volts_array, cal_array, ave_over=200, base_file='test', npdfs=10):
+def ict_charge(volts_array, cal_array, ave_over=200):
     steps   = len(volts_array[:,0])
     n_shots = len(volts_array[0,:])
     charge_array = np.zeros((1,n_shots))
@@ -136,23 +136,27 @@ def ict_charge(volts_array, cal_array, ave_over=200, base_file='test', npdfs=10)
             print 'Data is very noisy, please look at voltage curve to verify charge for shot:', n, '\n'
     
     print 'Charge =', np.max(charge_array), np.min(charge_array)
+   
+    return(scaled_volts, charge_array)
+ 
+def plot_ict_curves(scaled_volts, cal, base_file='test', n_pdfs=10):
     #Calculating the time steps in seconds
+    steps  = len(scaled_volts[:,0])
+    deltaT = cal[0,n_pdfs]
     timesteps = np.arange(0,steps)*deltaT
     pdffile = 'ICTcruve_' + base_file +'.pdf'
-    print 'Making a pdf of the first', npdfs, 'shots' 
+    print 'Making a pdf of the first', n_pdfs, 'shots' 
     with PdfPages(pdffile) as pdf:
         
-        for v in range(0,npdfs):
+        for v in range(0,n_pdfs):
              mytitle = 'ICT Voltage Curve '+ str(v) 
              plt.title(mytitle, size=18)
              plt.xlabel('time [s]', size=14)
              plt.ylabel('Voltage [V]', size=14)
              
-             plt.plot(timesteps, scaled_volts[:,n])
+             plt.plot(timesteps, scaled_volts[:,v])
              plt.plot([0,steps*deltaT], [0,0])
             
              pdf.savefig()
              plt.close()
     
-    
-    return (charge_array)
