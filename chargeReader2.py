@@ -128,15 +128,16 @@ def ict_charge(volts_array, cal_array, ave_over=200):
         volts = (volts-offset)*vscale #-vposition)*vscale
         scaled_volts[:,n] = volts        
         #Calculating the charge over the averaged datasets
-        charge = np.trapz(volts, dx=deltaT)
-        #charge = simps(volts,dx=deltaT)
+        #charge = np.trapz(volts, dx=deltaT)
+        charge = simps(volts,dx=deltaT)
         charge_array[0,n] = charge*(10**9/1.25)
            
         if np.abs(charge_array[0,n]) < 0.2:
             print 'Data is very noisy, please look at voltage curve to verify charge for shot:', n, '\n'
     
-    print 'Charge =', np.max(charge_array), np.min(charge_array)
-   
+    print 'Min Charge =', np.max(charge_array),'Max Charge=',  np.min(charge_array)
+    print 'Std is =', np.std(charge_array), 'Mean is=', np.mean(charge_array)
+
     return(scaled_volts, charge_array)
  
 def plot_ict_curves(scaled_volts, cal, base_file='test', n_pdfs=10):

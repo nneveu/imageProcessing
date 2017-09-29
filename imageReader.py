@@ -131,9 +131,9 @@ def average_images(image_array):
         
     ave_image = np.array(np.round(ave_image), dtype=np.uint16)    
     plt.imshow(ave_image)
-    #plt.colorbar()
-    #plt.show()
-    plt.savefig('average_no_background.pdf')
+    plt.colorbar()
+    plt.show()
+    #plt.savefig('average_no_background.pdf')
 
     return ave_image
 
@@ -215,7 +215,7 @@ def fit(imagesArray, dx, dy, oneframe=1 ):
     return (fit_x, fit_y)
     #plt.plot(fity, '-') 
     
-def fiducial_calc(image, sigma=0.25, min_r=0.25, max_r=0.5, YAG_D=44.45):
+def fiducial_calc(image, sigma=0.25, min_r=0.25, max_r=0.35, YAG_D=44.45):
     #min/max_r = guess at min radius size, in terms of percentage of pixels
     #This number will be used to search for yag screen. 
     #So, if YAG is about or larger than half the screen, 0,.25 is a good
@@ -224,14 +224,14 @@ def fiducial_calc(image, sigma=0.25, min_r=0.25, max_r=0.5, YAG_D=44.45):
     #http://scikit-image.org/docs/dev/auto_examples/edges/plot_circular_elliptical_hough_transform.html
     #https://www.pyimagesearch.com/2015/04/06/zero-parameter-automatic-canny-edge-detection-with-python-and-opencv/
     #https://stackoverflow.com/questions/44865023/circular-masking-an-image-in-python-using-numpy-arrays
-
+    #https://stackoverflow.com/questions/14464449/using-numpy-to-efficiently-convert-16-bit-image-data-to-8-bit-for-display-with
     #Only looks at one image right now
     dx, dy = image.shape
 
     v = np.median(image)
     # apply automatic Canny edge detection using the computed median
     lower = int(max(0, (1.0 - sigma) * v))
-    upper = int(min(1024, (1.0 + sigma) * v))
+    upper = int(min(np.max(image), (1.0 + sigma) * v))
     edges = canny(image, sigma=1, low_threshold=lower, high_threshold=upper)
 
     #Making array of possible radius values 
@@ -239,14 +239,27 @@ def fiducial_calc(image, sigma=0.25, min_r=0.25, max_r=0.5, YAG_D=44.45):
     lower_limit = int(max(dx,dy)*min_r)
     upper_limit = int(max(dx,dy)*max_r)
     hough_radii = np.arange(lower_limit, upper_limit, 1)
-    
+    print 'Checking this many radii possibilities: ', len(hough_radii)
+    print 'Max radius', np.max(hough_radii), 'Min radius', np.min(hough_radii) 
+    print 'If this number is larger than 40, adjust min_r and max_r to reduce posibilities'
     #Hough transform accumulator  
     hough_res = hough_circle(edges, hough_radii)    
     # Select the most prominent 3 circles
     accums, cx, cy, radii = hough_circle_peaks(hough_res, hough_radii,total_num_peaks=3)
     # Draw them
     fig, ax = plt.subplots(ncols=1, nrows=1, figsize=(10, 2))
-    image2 = color.gray2rgb(image) 
+
+    #rescaling to 8bit for easy inspection
+    #This does not effect result, purely for eye double check
+    min_val = np.min(image)
+    max_val = np.max(image)
+    test    = image
+    test    = test.clip(min_val, max_val, out=test)
+    test   -= min_val 
+    np.floor_divide(test, (max_val - min_val + 1) / 256, out=test, casting='unsafe')
+    test    = test.astype(np.uint8)
+
+    image2 = color.gray2rgb(test) 
     print image2.shape 
     for center_y, center_x, radius in zip(cy, cx, radii):
         circy, circx = circle_perimeter(center_y, center_x, radius)
