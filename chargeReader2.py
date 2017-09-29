@@ -18,10 +18,9 @@ Some notes:
 """
 import re
 #import os 
-import linecache
 from linecache import getline
 #import scipy
-#from scipy.integrate import simps 
+from scipy.integrate import simps 
 import numpy as np
 #import matplotlib
 import matplotlib.pyplot as plt
@@ -50,13 +49,13 @@ def sdd_to_volts_array(ict_file):
     #file  = 'WSPE_DT1_WD1_1p60.sdds'
     
     #Loading the number of steps and channels from the 20th line 
-    steps_channels = linecache.getline(ict_file,header+3)
+    steps_channels = getline(ict_file,header+3)
     steps    = int(steps_channels.split(' ')[0]) 
     channels = int(steps_channels.split(' ')[1].rstrip()) 
     print('Number of channels is: ', channels)
     print('Number of steps is: ', steps) 
     
-    date = (linecache.getline(ict_file,header+1)).split(':')
+    date = (getline(ict_file,header+1)).split(':')
     date = ':'.join(date[:3])
     print('Date is: ' , date)
     #The date is repeated before every set of data, 
@@ -86,7 +85,7 @@ def sdd_to_volts_array(ict_file):
                 #Calibration array has 3 numbers:
                 #0 - deltaT
                 #1 - vertical scaling?
-                #2 - vertical position?
+                #2 - vertical position, not needed?
                 cal_array[0,current_col] = float(cal[3])
                 cal_array[1,current_col] = float(cal[4])
                 cal_array[2,current_col] = float(cal[5])
@@ -97,10 +96,11 @@ def sdd_to_volts_array(ict_file):
     #print volts_array.shape
     return volts_array, cal_array
 
-def ict_charge(volts_array, cal_array, ave_over=100, base_file='test'):
-
+def ict_charge(volts_array, cal_array, ave_over=200, base_file='test', npdfs=10):
+    steps   = len(volts_array[:,0])
     n_shots = len(volts_array[0,:])
-    charge_array = np.empty[1,n_shots]
+    charge_array = np.zeros((1,n_shots))
+    scaled_volts = np.empty_like(volts_array)
     #This for loops over the number of datasets in the file, c.
     for n in np.arange(0,n_shots):
         volts   = volts_array[:,n]
@@ -108,13 +108,14 @@ def ict_charge(volts_array, cal_array, ave_over=100, base_file='test'):
         vscale  = cal_array[1,n]
         #vposition = cal_array[2,n] #scopes attempt at offset, not needed?
         #Calculating the voltage offset by averaging the first 300 pts.
-        offset = np.mean(volts_array[0:ave_over,n])
-        print "Offset is: ", offset
+        #offset = np.mean(volts_array[-ave_over:,n]) #ave on back
+        offset = np.mean(volts_array[:ave_over,n])
+        #print "Offset is: ", offset
         #Making sure the voltage offset value is not close to the peak value 
         all_pos = np.abs(volts)
         max_val = np.max(all_pos)
         test = max_val - np.abs(offset)
-
+        #print max_val, offset
         if (np.abs(test) < 0.05):
                 #Warning message
                 print 'The offset value is', offset, 'which is close to the max voltage reading', np.min(volts)
@@ -124,38 +125,34 @@ def ict_charge(volts_array, cal_array, ave_over=100, base_file='test'):
                 print 'Change function input "ave_over" to adjust pts: ict_charge(array, ave_over=NNN'
     
         #Calculating the voltage in Volts
-        volts = (volts-offset)*vscale
-        
+        volts = (volts-offset)*vscale #-vposition)*vscale
+        scaled_volts[:,n] = volts        
         #Calculating the charge over the averaged datasets
         charge = np.trapz(volts, dx=deltaT)
-        charge = simps(volts,dx=deltaT)
-        charge_array[1,n] = charge*(10**9/1.25)
-        print 'Charge =', np.max(charge_array), np.min(charge_array)
+        #charge = simps(volts,dx=deltaT)
+        charge_array[0,n] = charge*(10**9/1.25)
            
+        if np.abs(charge_array[0,n]) < 0.2:
+            print 'Data is very noisy, please look at voltage curve to verify charge for shot:', n, '\n'
     
-    if np.abs(charge) < 0.2:
-        print 'Data is very noisy, please look at voltage curve to verify charge for:', key
-        
-    print '\n'
-    
+    print 'Charge =', np.max(charge_array), np.min(charge_array)
     #Calculating the time steps in seconds
-    timesteps = np.arange(0,n_shots)*deltaT
-    pdffile = 'ICTcruve_' + outfile_base +'.pdf'
-    
+    timesteps = np.arange(0,steps)*deltaT
+    pdffile = 'ICTcruve_' + base_file +'.pdf'
+    print 'Making a pdf of the first', npdfs, 'shots' 
     with PdfPages(pdffile) as pdf:
         
-        for key in charge:
-             mytitle = 'ICT Voltage Curve '+ key
+        for v in range(0,npdfs):
+             mytitle = 'ICT Voltage Curve '+ str(v) 
              plt.title(mytitle, size=18)
              plt.xlabel('time [s]', size=14)
              plt.ylabel('Voltage [V]', size=14)
              
-
-             plt.plot(timesteps, volts)
+             plt.plot(timesteps, scaled_volts[:,n])
              plt.plot([0,steps*deltaT], [0,0])
             
              pdf.savefig()
              plt.close()
     
     
-    return (volts, charge)
+    return (charge_array)
