@@ -129,9 +129,9 @@ def average_images(image_array):
         ave_image = ave_image + hold/Nframes
         
     ave_image = np.array(np.round(ave_image), dtype=np.uint16)    
-    #plt.imshow(ave_image)
-    #plt.colorbar()
-    #plt.show()
+    plt.imshow(ave_image)
+    plt.colorbar()
+    plt.show()
     #plt.savefig('average_no_background.pdf')
 
     return ave_image
@@ -252,7 +252,7 @@ def select_on_charge(images, charge, max_charge, min_charge):
     loc = np.where( (charge[0,:] > max_charge) & (charge[0,:] < min_charge) )
     n_images = len(loc[0])
     print 'Number of data sets in specified range:', n_images
-    
+    #print np.shape(images)
     #Getting corresponding images
     charge_images = images[:,:,loc[0]]
 
@@ -271,12 +271,13 @@ def similarity_check(image_array):
     return s_ave
 
 
-def raw_data_curves(imagesArray, dx, dy, oneframe=1 ):
+def raw_data_curves(image, oneframe=1 ):
     # At the moment, this function is only finding the fit for one 
-    # dimension (y), and one frame (frame 1). 
+    # one frame (frame 1). 
     if oneframe == 1:
-       f1 = imagesArray
- 
+       f1 = image
+    
+    dx, dy = np.shape(image)
     #X fit, one for one sum across lines
     fit_x = np.zeros([dx])
     for i in xrange(0,dx):     
@@ -285,32 +286,64 @@ def raw_data_curves(imagesArray, dx, dy, oneframe=1 ):
     
     #Finding y fit
     fit_y = np.zeros([dy])
-    for i in xrange(0,dy):     
+    for i in xrange(0,dy): 
+
         line = f1[:,i]
         fit_y[i] = np.sum(line)
          
     return (fit_x, fit_y)
 
 
-def fit_data(raw_x, fiducial):
-    n_points = len(raw_x)
-    x_max    = n_points*fiducial 
-    x_axis   = (np.arange(0,n_points) - n_points/2)*fiducial
+def fit_data(images, fiducials, key):
+    dx, dy, n_images  = np.shape(images)
+    sigmax    = np.zeros((n_images))
+    sigmay    = np.zeros((n_images))
+    fiducial  = fiducials[0][key]
+    print np.shape(images)
+    beamsizes = {}
 
     mod = GaussianModel()
+
+    for n in range(0,n_images):
+        #getting raw data curves 
+        raw_x, raw_y = raw_data_curves(images[:,:,n]) 
+        x_points = len(raw_x) #x_max = x_points*fiducial
+        y_points = len(raw_y) #y_max = y_points*fiducial
+        
+        x_axis   = (np.arange(0,x_points) - x_points/2)*fiducial
+        y_axis   = (np.arange(0,y_points) - y_points/2)*fiducial
+       
+        #Calc sigmax 
+        parsx = mod.guess(raw_x, x=x_axis)
+        outx  = mod.fit(raw_x, parsx, x=x_axis)
+        paramsx = outx.best_values
+        sigmax[n]  = paramsx['sigma']
+        #Calc sigmay
+        parsy = mod.guess(raw_y, x=y_axis)
+        outy  = mod.fit(raw_y, parsy, x=y_axis) 
+        paramsy = outy.best_values
+        sigmay[n]  = paramsy['sigma']
+         
+    print 'sigmax', sigmax
+    print 'sigmay', sigmay
+    beamsizes['sigmax'] = sigmax 
+    beamsizes['sigmay'] = sigmay 
+    np.save('beamsizes_'+key+'.npy', beamsizes)
+
+    #mod = GaussianModel()
     #mod  = LorentzianModel()
     #mod = VoigtModel()
-    pars = mod.guess(raw_x, x=x_axis)
-    out  = mod.fit(raw_x, pars, x=x_axis)
-    params = out.best_values
-    sigma  = params['sigma']
+    #pars = mod.guess(raw_x, x=x_axis)
+    #out  = mod.fit(raw_x, pars, x=x_axis)
+    #params = out.best_values
+    #sigma  = params['sigma']
     #print sigma
     #print(out.fit_report(min_correl=0.25))
 
-    plt.figure(200)
-    plt.plot(x_axis, raw_x,         'bo')
-    plt.plot(x_axis, out.init_fit, 'k--')
-    plt.plot(x_axis, out.best_fit, 'r-')
+    #plt.figure(200)
+    #plt.plot(x_axis, raw_x,         'bo')
+    #plt.plot(x_axis, out.init_fit, 'k--')
+    #plt.plot(x_axis, out.best_fit, 'r-')
     #plt.show()
 
     #z = np.polyfit(x_axis, raw_x, 30)
@@ -321,7 +354,7 @@ def fit_data(raw_x, fiducial):
     #plt.plot(x_axis, raw_x)
     #plt.plot(x_axis, y_new)
     #plt.show()
-    return (x_axis, sigma)
+    return (beamsizes)
  
 def createCircularMask(h, w, center=None, radius=None):
     #https://stackoverflow.com/questions/44865023/circular-masking-an-image-in-python-using-numpy-arrays

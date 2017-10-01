@@ -142,7 +142,7 @@ def calc_offset(volts, ave_over):
     max_val = np.max(volts)
     if min_val < 0:
         test = np.abs(min_val) - offset
-    elif min_val > 0:
+    elif min_val >= 0:
         test = offset - min_val
     #print np.abs(test)
     if (np.abs(test) < 0.05):
