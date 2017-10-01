@@ -153,59 +153,50 @@ def calc_offset(volts, ave_over):
         print 'Change function input "ave_over" to adjust pts: ict_charge_csv(array, ave_over=NNN)'
     return(offset)
 
-def ict_charge_csv(volts_array, time_array, ave_over=200, ict_cal=1.25):
+
+def dT_csv(time_array):
+    deltaT = time_array[1,0] - time_array[0,0] 
+    return(deltaT)
+     
+def dT_sdds(cal_array, n):
+    deltaT  = cal_array[0,n]
+    vscale  = cal_array[1,n] 
+    #vposition = cal_array[2,n] #scopes attempt at offset, not needed?
+    return(deltaT, vscale) 
+
+def ict_charge(volts_array, data_type='none', time_array=0, cal_array=0,ave_over=200, ict_cal=1.25):
     steps   = len(volts_array[:,0]) 
     n_shots = len(volts_array[0,:]) 
     charge_array = np.zeros((1,n_shots)) 
     scaled_volts = np.empty_like(volts_array) 
     #This for loops over the number of datasets in the file, c. 
     for n in np.arange(0,n_shots): 
-        volts   = volts_array[:,n]
-        #print 'No calibration given, this is correct for csv files.' 
-        deltaT = time_array[1,0] - time_array[0,0] 
-        offset = calc_offset(volts, ave_over)
-        print 'offset', offset
-        volts = volts - offset
+        volts  = volts_array[:,n]
+        if data_type=='csv':
+            deltaT = dT_csv(time_array)
+            offset = calc_offset(volts, ave_over)  
+            #Calculating the voltage in Volts 
+            volts = volts - offset  
+        elif data_type=='sdds':
+            deltaT, vscale = dT_sdds(cal_array, n)
+            offset = calc_offset(volts, ave_over)
+            volts = (volts-offset)*vscale #-vposition)*vscale  
+        else:
+            print 'Invalid data type, exiting function'
+            break
         scaled_volts[:,n]  = volts
+        #Calculating the charge over the averaged datasets 
         charge = simps(volts, dx=deltaT)
-        charge = charge_array[0,n] = charge*(10**9/ict_cal)
+        #charge = np.trapz(volts, dx=deltaT) 
+        charge_array[0,n] = charge*(10**9/ict_cal)
    
         if np.abs(charge_array[0,n]) < 0.2:
             print 'Data is very noisy, please look at voltage curve to verify charge for shot:', n, '\n'
 
     print 'Min Charge =', np.max(charge_array),'Max Charge=',  np.min(charge_array)
     print 'Std is =', np.std(charge_array), 'Mean is=', np.mean(charge_array)
-    print "CSV file used, returning charge_array"
     return(charge_array, scaled_volts)
     
-def ict_charge_sdds(volts_array, cal_array=0, ave_over=200, ict_cal=1.25):
-    steps   = len(volts_array[:,0])
-    n_shots = len(volts_array[0,:]) 
-    charge_array = np.zeros((1,n_shots))
-    scaled_volts = np.empty_like(volts_array) 
-
-    #This for loops over the number of datasets in the file, c.
-    for n in np.arange(0,n_shots):
-        volts   = volts_array[:,n]
-        deltaT  = cal_array[0,n]
-        vscale  = cal_array[1,n]
-        #vposition = cal_array[2,n] #scopes attempt at offset, not needed?
-        offset = calc_offset(volts, ave_over) 
-        #Calculating the voltage in Volts
-        volts = (volts-offset)*vscale #-vposition)*vscale
-        scaled_volts[:,n] = volts        
-        #Calculating the charge over the averaged datasets
-        #charge = np.trapz(volts, dx=deltaT)
-        charge = simps(volts,dx=deltaT)
-        charge_array[0,n] = charge*(10**9/ict_cal)
-           
-        if np.abs(charge_array[0,n]) < 0.2:
-            print 'Data is very noisy, please look at voltage curve to verify charge for shot:', n, '\n'
-    
-    print 'Min Charge =', np.max(charge_array),'Max Charge=',  np.min(charge_array)
-    print 'Std is =', np.std(charge_array), 'Mean is=', np.mean(charge_array)
-    print "SDDS file used, returning scaled_volts array and charge_array"
-    return(scaled_volts, charge_array)
  
 def plot_ict_curves(scaled_volts, cal=0, base_file='test', n_pdfs=10, time_array=0):
     #Calculating the time steps in seconds
@@ -233,4 +224,4 @@ def plot_ict_curves(scaled_volts, cal=0, base_file='test', n_pdfs=10, time_array
             
              pdf.savefig()
              plt.close()
-    
+    plt.close('all') 
