@@ -36,8 +36,41 @@ Code steps:
     
 To use the 
 """
+def csv_to_volts_array(ict_file):
+    header = 6
+    #first occurence of step number per data set
+    #This assumes they are the same
+    steps = int(getline(ict_file, 4).split(' ')[-1].strip())
+   
+    #Counting how many data sets
+    date = getline(ict_file,2).split(':')[1]
+    print 'The data was taken on',date
+    with open(ict_file,'r') as f:
+        n_data_sets = sum(len(re.findall(date , line)) for line in f)
+    f.close()
+    print('This many data sets were taken: ', n_data_sets)
+  
+    #Loading data  
+    #Making arrays with charge and no text
+    #Only one channel possible
+    volts_array = np.zeros((steps,n_data_sets))
+    time_array  = np.zeros((steps,n_data_sets))
+    current_col = 0
+    with open(ict_file, 'r') as f:
+        for ind, line in enumerate(f,1):
+            if date in line:
+                #print date
+                for i in range(0,steps):
+                    #Adding 4 skips other header 
+                    data = getline(ict_file, ind+5+i).split(',')
+                    #print data[0]#, data[1]
+                    time_array[i,current_col]  = float(data[0])
+                    volts_array[i,current_col] = float(data[1].strip())
+                current_col = current_col +1
+ 
+    return(volts_array, time_array)
 
-def sdd_to_volts_array(ict_file):    
+def sdds_to_volts_array(ict_file):    
     #Defining variables for use later in the script
     #lines 1-17 Are header. 
     header = 17
@@ -56,22 +89,23 @@ def sdd_to_volts_array(ict_file):
     print('Number of steps is: ', steps) 
     
     date = (getline(ict_file,header+1)).split(':')
+    #Getting month, day, year only -> [:3]
     date = ':'.join(date[:3])
     print('Date is: ' , date)
     #The date is repeated before every set of data, 
     #   and the first occurance is on line 18. 
     #   This line is used to find how many data sets are in the file
     
-    #Finding the number of datasets using c as a counter
+    #Finding the number of datasets using shots as a counter
     with open(ict_file,'r') as f:
         shots = sum(len(re.findall( date, line)) for line in f)
     f.close()
     print('This many shots were taken: ', shots)
 
-    #Making arrays with files with charge and no text
+    #Making arrays with charge and no text
     #Only one channel possible
-    volts_array = np.empty([steps,shots])
-    cal_array   = np.empty([3,shots])
+    volts_array = np.zeros((steps,shots))
+    cal_array   = np.zeros((3,shots))
     current_col = 0
     with open(ict_file, 'r') as f:
         for ind, line in enumerate(f,1):
@@ -94,57 +128,96 @@ def sdd_to_volts_array(ict_file):
                 current_col = current_col +1    
 
     #print volts_array.shape
-    return volts_array, cal_array
+    return(volts_array, cal_array)
 
-def ict_charge(volts_array, cal_array, ave_over=200):
+
+def calc_offset(volts, ave_over):
+    #Calculating the voltage offset by averaging the first 200 pts
+    offset = np.mean(volts[:ave_over])
+    #offset = np.mean(volts_array[-ave_over:,n]) #ave on back
+    #print 'offset', offset
+    #Making sure the voltage offset value is not close to the peak value
+    min_val = np.min(volts)
+    max_val = np.max(volts)
+    if min_val < 0:
+        test = np.abs(min_val) - offset
+    elif min_val > 0:
+        test = offset - min_val
+    #print np.abs(test)
+    if (np.abs(test) < 0.05):
+        #Warning message
+        print 'The offset value is', offset, 'which is close to the max voltage reading', np.min(volts)
+        print 'If you feel those numbers are acceptable, no need to do anything.'
+        print 'To double check the zero line, look at the voltage curve, the zero line is plotted in green.'
+        print 'To adjust the zero line, change the number of points used to calculate the offset.'
+        print 'Change function input "ave_over" to adjust pts: ict_charge_csv(array, ave_over=NNN)'
+    return(offset)
+
+def ict_charge_csv(volts_array, time_array, ave_over=200, ict_cal=1.25):
+    steps   = len(volts_array[:,0]) 
+    n_shots = len(volts_array[0,:]) 
+    charge_array = np.zeros((1,n_shots)) 
+    scaled_volts = np.empty_like(volts_array) 
+    #This for loops over the number of datasets in the file, c. 
+    for n in np.arange(0,n_shots): 
+        volts   = volts_array[:,n]
+        #print 'No calibration given, this is correct for csv files.' 
+        deltaT = time_array[1,0] - time_array[0,0] 
+        offset = calc_offset(volts, ave_over)
+        print 'offset', offset
+        volts = volts - offset
+        scaled_volts[:,n]  = volts
+        charge = simps(volts, dx=deltaT)
+        charge = charge_array[0,n] = charge*(10**9/ict_cal)
+   
+        if np.abs(charge_array[0,n]) < 0.2:
+            print 'Data is very noisy, please look at voltage curve to verify charge for shot:', n, '\n'
+
+    print 'Min Charge =', np.max(charge_array),'Max Charge=',  np.min(charge_array)
+    print 'Std is =', np.std(charge_array), 'Mean is=', np.mean(charge_array)
+    print "CSV file used, returning charge_array"
+    return(charge_array, scaled_volts)
+    
+def ict_charge_sdds(volts_array, cal_array=0, ave_over=200, ict_cal=1.25):
     steps   = len(volts_array[:,0])
-    n_shots = len(volts_array[0,:])
+    n_shots = len(volts_array[0,:]) 
     charge_array = np.zeros((1,n_shots))
-    scaled_volts = np.empty_like(volts_array)
+    scaled_volts = np.empty_like(volts_array) 
+
     #This for loops over the number of datasets in the file, c.
     for n in np.arange(0,n_shots):
         volts   = volts_array[:,n]
         deltaT  = cal_array[0,n]
         vscale  = cal_array[1,n]
         #vposition = cal_array[2,n] #scopes attempt at offset, not needed?
-        #Calculating the voltage offset by averaging the first 300 pts.
-        #offset = np.mean(volts_array[-ave_over:,n]) #ave on back
-        offset = np.mean(volts_array[:ave_over,n])
-        #print "Offset is: ", offset
-        #Making sure the voltage offset value is not close to the peak value 
-        all_pos = np.abs(volts)
-        max_val = np.max(all_pos)
-        test = max_val - np.abs(offset)
-        #print max_val, offset
-        if (np.abs(test) < 0.05):
-                #Warning message
-                print 'The offset value is', offset, 'which is close to the max voltage reading', np.min(volts)
-                print 'If you feel those numbers are acceptable, no need to do anything.'
-                print 'To double check the zero line, look at the voltage curve, the zero line is plotted in green.' 
-                print 'To adjust the zero line, change the number of points used to calculate the offset.'
-                print 'Change function input "ave_over" to adjust pts: ict_charge(array, ave_over=NNN'
-    
+        offset = calc_offset(volts, ave_over) 
         #Calculating the voltage in Volts
         volts = (volts-offset)*vscale #-vposition)*vscale
         scaled_volts[:,n] = volts        
         #Calculating the charge over the averaged datasets
         #charge = np.trapz(volts, dx=deltaT)
         charge = simps(volts,dx=deltaT)
-        charge_array[0,n] = charge*(10**9/1.25)
+        charge_array[0,n] = charge*(10**9/ict_cal)
            
         if np.abs(charge_array[0,n]) < 0.2:
             print 'Data is very noisy, please look at voltage curve to verify charge for shot:', n, '\n'
     
     print 'Min Charge =', np.max(charge_array),'Max Charge=',  np.min(charge_array)
     print 'Std is =', np.std(charge_array), 'Mean is=', np.mean(charge_array)
-
+    print "SDDS file used, returning scaled_volts array and charge_array"
     return(scaled_volts, charge_array)
  
-def plot_ict_curves(scaled_volts, cal, base_file='test', n_pdfs=10):
+def plot_ict_curves(scaled_volts, cal=0, base_file='test', n_pdfs=10, time_array=0):
     #Calculating the time steps in seconds
     steps  = len(scaled_volts[:,0])
-    deltaT = cal[0,n_pdfs]
-    timesteps = np.arange(0,steps)*deltaT
+    try:
+        deltaT = cal[0,n_pdfs]
+        timesteps = np.arange(0,steps)*deltaT 
+    except:
+        #print 'Using csv file data'
+        timesteps = time_array[:,0]
+        deltaT = time_array[1,0] - time_array[0,0]
+    
     pdffile = 'ICTcruve_' + base_file +'.pdf'
     print 'Making a pdf of the first', n_pdfs, 'shots' 
     with PdfPages(pdffile) as pdf:
