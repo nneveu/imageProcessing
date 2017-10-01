@@ -21,9 +21,8 @@ from skimage.measure import compare_ssim as ssim
 from skimage.transform import hough_circle, hough_circle_peaks
 from skimage.feature import canny
 from skimage.draw import circle_perimeter
-from skimage import measure, filters, segmentation 
-from skimage import data, color
-
+from lmfit import  Model
+from lmfit.models import GaussianModel, LorentzianModel, VoigtModel
 
 def readimage(imagefile):
     #This function reads in image data
@@ -130,9 +129,9 @@ def average_images(image_array):
         ave_image = ave_image + hold/Nframes
         
     ave_image = np.array(np.round(ave_image), dtype=np.uint16)    
-    plt.imshow(ave_image)
-    plt.colorbar()
-    plt.show()
+    #plt.imshow(ave_image)
+    #plt.colorbar()
+    #plt.show()
     #plt.savefig('average_no_background.pdf')
 
     return ave_image
@@ -251,12 +250,13 @@ def select_on_charge(images, charge, max_charge, min_charge):
     min_charge = -min_charge
     
     loc = np.where( (charge[0,:] > max_charge) & (charge[0,:] < min_charge) )
-    print 'Number of data sets in specified range:', len(loc[0])
+    n_images = len(loc[0])
+    print 'Number of data sets in specified range:', n_images
     
     #Getting corresponding images
     charge_images = images[:,:,loc[0]]
 
-    return charge_images
+    return(charge_images, n_images)
 
 
 #-------------------------------------------------------------------------------
@@ -271,13 +271,12 @@ def similarity_check(image_array):
     return s_ave
 
 
-def fit(imagesArray, dx, dy, oneframe=1 ):
+def raw_data_curves(imagesArray, dx, dy, oneframe=1 ):
     # At the moment, this function is only finding the fit for one 
     # dimension (y), and one frame (frame 1). 
     if oneframe == 1:
-        f1 = imagesArray[:,:,0]
-        #f1 = imagesArray
-        
+       f1 = imagesArray
+ 
     #X fit, one for one sum across lines
     fit_x = np.zeros([dx])
     for i in xrange(0,dx):     
@@ -292,6 +291,37 @@ def fit(imagesArray, dx, dy, oneframe=1 ):
          
     return (fit_x, fit_y)
 
+
+def fit_data(raw_x, fiducial):
+    n_points = len(raw_x)
+    x_max    = n_points*fiducial 
+    x_axis   = (np.arange(0,n_points) - n_points/2)*fiducial
+
+    mod = GaussianModel()
+    #mod  = LorentzianModel()
+    #mod = VoigtModel()
+    pars = mod.guess(raw_x, x=x_axis)
+    out  = mod.fit(raw_x, pars, x=x_axis)
+    params = out.best_values
+    sigma  = params['sigma']
+    #print sigma
+    #print(out.fit_report(min_correl=0.25))
+
+    plt.figure(200)
+    plt.plot(x_axis, raw_x,         'bo')
+    plt.plot(x_axis, out.init_fit, 'k--')
+    plt.plot(x_axis, out.best_fit, 'r-')
+    #plt.show()
+
+    #z = np.polyfit(x_axis, raw_x, 30)
+    #f = np.poly1d(z)
+    #y_new = f(x_axis)
+    #popt, pcov = curve_fit(raw_x, x_axis, ydata)
+    #plt.figure(300)
+    #plt.plot(x_axis, raw_x)
+    #plt.plot(x_axis, y_new)
+    #plt.show()
+    return (x_axis, sigma)
  
 def createCircularMask(h, w, center=None, radius=None):
     #https://stackoverflow.com/questions/44865023/circular-masking-an-image-in-python-using-numpy-arrays

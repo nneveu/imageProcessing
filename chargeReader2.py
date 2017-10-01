@@ -70,7 +70,8 @@ def csv_to_volts_array(ict_file):
  
     return(volts_array, time_array)
 
-def sdds_to_volts_array(ict_file):    
+def sdds_to_volts_array(ict_file): 
+    #https://stackoverflow.com/questions/20414989/how-many-times-a-word-occurs-in-a-file?answertab=votes#tab-top   
     #Defining variables for use later in the script
     #lines 1-17 Are header. 
     header = 17
