@@ -138,7 +138,7 @@ def average_images(image_array):
     return ave_image
 
 
-def background_subtraction(image_array, background_image):
+def background_subtraction(image_array, background_image, max_pixel=1024):
     #https://www.raspberrypi.org/forums/viewtopic.php?t=38239&p=316837
     #Find dimensions of array
     #dx = len(image_array[:,0,0])
@@ -151,7 +151,7 @@ def background_subtraction(image_array, background_image):
         Nframes = len(image_array[0,0,:])
         for i in range(0,Nframes):
             float_im   = np.array(image_array[:,:,i], dtype=np.float)
-            no_background_image[:,:,i] = np.clip(float_im - float_back, 0, 1024)
+            no_background_image[:,:,i] = np.clip(float_im - float_back, 0, max_pixel)
             implot = plt.imshow(no_background_image[:,:,i])
     #print 'max image', np.max(image_array)
     #print 'max back', np.max(background_image)
@@ -161,64 +161,18 @@ def background_subtraction(image_array, background_image):
         no_background_image = np.clip(float_im - float_back, 0, None)
     
     no_background_image = np.array(np.round(no_background_image), dtype=np.uint16) 
-    no_background_image = np.clip(no_background_image, 0, 1024)
+    no_background_image = np.clip(no_background_image, 0, max_pixel)
     
-    implot = plt.imshow(no_background_image)
-    plt.colorbar()
-    plt.show()
+    #implot = plt.imshow(no_background_image)
+    #plt.colorbar()
+    #plt.show()
     return no_background_image 
-#-------------------------------------------------------------------------------
-def similarity_check(image_array):
-    #http://scikit-image.org/docs/dev/auto_examples/transform/plot_ssim.html
-    Nframes = len(image_array[0,0,:])
-    s_ave  = 0
-    for i in range(0,Nframes):
-        s = ssim(image_array[:,:,0], image_array[:,:,i])
-        s_ave = s_ave + s/Nframes 
-            
-    return s_ave
 
 
-def select_on_charge(images, bad_image_locs):
-    clean_images = 0
-
-    return clean_images
-
-
-def fit(imagesArray, dx, dy, oneframe=1 ):
-    # At the moment, this function is only finding the fit for one 
-    # dimension (y), and one frame (frame 1). 
-    #f1 = frames[200:320,110:400,0]
-    if oneframe == 1:
-        #f1 = imagesArray[:,:,0]
-        f1 = imagesArray
-        
-    #X fit, one for one sum across lines
-    fit_x = np.zeros([dx])
-    for i in xrange(0,dx):     
-        line = f1[i,:]
-        fit_x[i] = np.sum(line)
-    
-    #Finding y fit
-    #Need to adjust sum bc interlaced in Y dim
-    #Grabbing only the columns with data
-    #yframe = f1[:, 1::2]
-
-    #plt.imshow(yframe)
-    fit_y = np.zeros([dy])#/2])
-    for i in xrange(0,dy):#/2):     
-         #line = f1[:,i]
-        #line = yframe[:,i] 
-        line = f1[:,i]
-        fit_y[i] = np.sum(line)
-         
-    return (fit_x, fit_y)
-    #plt.plot(fity, '-') 
-    
 def fiducial_calc(image, sigma=0.25, min_r=0.25, max_r=0.35, YAG_D=44.45):
     #min/max_r = guess at min radius size, in terms of percentage of pixels
     #This number will be used to search for yag screen. 
-    #So, if YAG is about or larger than half the screen, 0,.25 is a good
+    #So, if YAG is about or larger than half the screen, 0.25 is a good
     # guess for the radius - i.e. radius is on scale of 1/4 size of image
 
     #http://scikit-image.org/docs/dev/auto_examples/edges/plot_circular_elliptical_hough_transform.html
@@ -230,6 +184,7 @@ def fiducial_calc(image, sigma=0.25, min_r=0.25, max_r=0.35, YAG_D=44.45):
 
     v = np.median(image)
     # apply automatic Canny edge detection using the computed median
+
     lower = int(max(0, (1.0 - sigma) * v))
     upper = int(min(np.max(image), (1.0 + sigma) * v))
     edges = canny(image, sigma=1, low_threshold=lower, high_threshold=upper)
@@ -288,6 +243,55 @@ def remove_beam(image, percent_threshold=0.8):
     plt.imshow(image)
     plt.show()
     return (image)
+
+
+def select_on_charge(images, charge, max_charge, min_charge):
+    #Using a positive convention for inputs
+    max_charge = -max_charge
+    min_charge = -min_charge
+    
+    loc = np.where( (charge[0,:] > max_charge) & (charge[0,:] < min_charge) )
+    print 'Number of data sets in specified range:', len(loc[0])
+    
+    #Getting corresponding images
+    charge_images = images[:,:,loc[0]]
+
+    return charge_images
+
+
+#-------------------------------------------------------------------------------
+def similarity_check(image_array):
+    #http://scikit-image.org/docs/dev/auto_examples/transform/plot_ssim.html
+    Nframes = len(image_array[0,0,:])
+    s_ave  = 0
+    for i in range(0,Nframes):
+        s = ssim(image_array[:,:,0], image_array[:,:,i])
+        s_ave = s_ave + s/Nframes 
+            
+    return s_ave
+
+
+def fit(imagesArray, dx, dy, oneframe=1 ):
+    # At the moment, this function is only finding the fit for one 
+    # dimension (y), and one frame (frame 1). 
+    if oneframe == 1:
+        f1 = imagesArray[:,:,0]
+        #f1 = imagesArray
+        
+    #X fit, one for one sum across lines
+    fit_x = np.zeros([dx])
+    for i in xrange(0,dx):     
+        line = f1[i,:]
+        fit_x[i] = np.sum(line)
+    
+    #Finding y fit
+    fit_y = np.zeros([dy])
+    for i in xrange(0,dy):     
+        line = f1[:,i]
+        fit_y[i] = np.sum(line)
+         
+    return (fit_x, fit_y)
+
  
 def createCircularMask(h, w, center=None, radius=None):
     #https://stackoverflow.com/questions/44865023/circular-masking-an-image-in-python-using-numpy-arrays
@@ -341,22 +345,6 @@ def createCircularMask(h, w, center=None, radius=None):
 #crop = edgeDetection(imArray)
 
 #==============================================================================
-# Plotting distribution of beam 
-# fitxtest, fitytest = fit(imArray[:,:,0], dx, dy, oneframe=1 )
-# fitx, fity         = fit(img, dx, dy, oneframe=1 )
-# (fit_x, fit_y)      = fit(crop, len(crop[:,0]), len(crop[0,:]), oneframe=1)
-# plt.figure()
-# plt.plot(fit_x, 'g', label= 'x fit')
-# plt.legend()
-# plt.figure()
-# plt.plot(fit_y, label = 'y fit')
-# plt.legend()
-# plt.figure()
-#==============================================================================
-
-#print f1.min(), f1.max(), f1.mean()
- 
-#==============================================================================
 # fig, ax = plt.subplots(ncols=1, nrows=1, figsize=(5, 2))
 #==============================================================================
 
@@ -364,7 +352,6 @@ def createCircularMask(h, w, center=None, radius=None):
 #plt.savefig('denoise.pdf')
 
 #==============================================================================
-# 
 # #==============================================================================
 # # mask   = (f1<52)+0.0                  
 # # image_result = inpaint.inpaint_biharmonic(f1, mask)#, multichannel=True)
@@ -375,9 +362,6 @@ def createCircularMask(h, w, center=None, radius=None):
 # #plt.pcolormesh(x,y, f1, cmap='copper', norm=LogNorm(vmin=1, vmax=np.max(f1)))
 # 
 #==============================================================================
-
-
-
 
 #cmap colors:
     #Accent, Accent_r, Blues, Blues_r, BrBG, BrBG_r, BuGn, 
