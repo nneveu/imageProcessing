@@ -49,7 +49,7 @@ def readimage(imagefile):
 
     return(dx, dy, Nframes, images_array)  
 
-
+#-------------------------------------------------------------------------------
 def difilter(image_array, use_filter='median'):
     #Deinterlace and filter
     # Applies a median filter to all images 
@@ -81,7 +81,7 @@ def difilter(image_array, use_filter='median'):
 
     return(filtered_image)  
 
-   
+#-------------------------------------------------------------------------------   
 def view_each_frame(image_array): 
     #This function shows each frame one by one
     # If you want to stop looking at the images
@@ -105,8 +105,8 @@ def view_each_frame(image_array):
         plt.figure()
         plt.imshow(di_image)
         plt.show()
-
-def average_images(image_array):
+#-------------------------------------------------------------------------------
+def average_images(image_array, xaxis=0, yaxis=0):
     #This function takes all images in 
     # image array and averages them to 
     # create one image
@@ -129,14 +129,14 @@ def average_images(image_array):
         ave_image = ave_image + hold/Nframes
         
     ave_image = np.array(np.round(ave_image), dtype=np.uint16)    
-    plt.imshow(ave_image)
+    plt.imshow(ave_image, interpolation='none', extent=[np.min(xaxis), np.max(xaxis), np.min(yaxis), np.max(yaxis)])
     plt.colorbar()
     plt.show()
     #plt.savefig('average_no_background.pdf')
 
     return ave_image
 
-
+#-------------------------------------------------------------------------------
 def background_subtraction(image_array, background_image, max_pixel=1024):
     #https://www.raspberrypi.org/forums/viewtopic.php?t=38239&p=316837
     #Find dimensions of array
@@ -167,7 +167,7 @@ def background_subtraction(image_array, background_image, max_pixel=1024):
     #plt.show()
     return no_background_image 
 
-
+#-------------------------------------------------------------------------------
 def fiducial_calc(image, sigma=0.25, min_r=0.25, max_r=0.35, YAG_D=44.45):
     #min/max_r = guess at min radius size, in terms of percentage of pixels
     #This number will be used to search for yag screen. 
@@ -233,7 +233,7 @@ def fiducial_calc(image, sigma=0.25, min_r=0.25, max_r=0.35, YAG_D=44.45):
     fiducial = YAG_r / radius
 
     return(fiducial)
-   
+#-------------------------------------------------------------------------------  
 def remove_beam(image, percent_threshold=0.8):
     #Removes brightest part of picture. 
     #Higher threshold means less is removed.
@@ -243,7 +243,7 @@ def remove_beam(image, percent_threshold=0.8):
     plt.show()
     return (image)
 
-
+#-------------------------------------------------------------------------------
 def select_on_charge(images, charge, max_charge, min_charge):
     #Using a positive convention for inputs
     max_charge = -max_charge
@@ -257,20 +257,7 @@ def select_on_charge(images, charge, max_charge, min_charge):
     charge_images = images[:,:,loc[0]]
 
     return(charge_images, n_images)
-
-
 #-------------------------------------------------------------------------------
-def similarity_check(image_array):
-    #http://scikit-image.org/docs/dev/auto_examples/transform/plot_ssim.html
-    Nframes = len(image_array[0,0,:])
-    s_ave  = 0
-    for i in range(0,Nframes):
-        s = ssim(image_array[:,:,0], image_array[:,:,i])
-        s_ave = s_ave + s/Nframes 
-            
-    return s_ave
-
-
 def raw_data_curves(image, oneframe=1 ):
     # At the moment, this function is only finding the fit for one 
     # one frame (frame 1). 
@@ -285,6 +272,7 @@ def raw_data_curves(image, oneframe=1 ):
         fit_x[i] = np.sum(line)
     
     #Finding y fit
+
     fit_y = np.zeros([dy])
     for i in xrange(0,dy): 
 
@@ -293,7 +281,7 @@ def raw_data_curves(image, oneframe=1 ):
          
     return (fit_x, fit_y)
 
-
+#-------------------------------------------------------------------------------
 def fit_data(images, fiducials, key):
     dx, dy, n_images  = np.shape(images)
     sigmax    = np.zeros((n_images))
@@ -355,6 +343,33 @@ def fit_data(images, fiducials, key):
     #plt.plot(x_axis, y_new)
     #plt.show()
     return (beamsizes)
+#-------------------------------------------------------------------------------
+def crop_image(image, x_min=0, x_max=480, y_min=0, y_max=640):
+    #Must be one frame
+    #dx, dy = image.shape()    
+    cropped = image[x_min:x_max, y_min:y_max]
+    plt.figure(400)
+    plt.imshow(cropped)
+    plt.show()
+    return(cropped)
+
+
+
+
+def similarity_check(image_array):
+    #http://scikit-image.org/docs/dev/auto_examples/transform/plot_ssim.html
+    Nframes = len(image_array[0,0,:])
+    s_ave  = 0
+    for i in range(0,Nframes):
+        s = ssim(image_array[:,:,0], image_array[:,:,i])
+        s_ave = s_ave + s/Nframes 
+            
+    return s_ave
+
+
+
+
+
  
 def createCircularMask(h, w, center=None, radius=None):
     #https://stackoverflow.com/questions/44865023/circular-masking-an-image-in-python-using-numpy-arrays
