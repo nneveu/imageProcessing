@@ -106,7 +106,7 @@ def view_each_frame(image_array):
         plt.imshow(di_image)
         plt.show()
 #-------------------------------------------------------------------------------
-def average_images(image_array, xaxis=0, yaxis=0):
+def average_images(image_array):#, fiducial='no'):
     #This function takes all images in 
     # image array and averages them to 
     # create one image
@@ -127,12 +127,11 @@ def average_images(image_array, xaxis=0, yaxis=0):
         image = image_array[:,:,i]
         hold = np.array(image, dtype=np.float)        
         ave_image = ave_image + hold/Nframes
-        
-    ave_image = np.array(np.round(ave_image), dtype=np.uint16)    
-    plt.imshow(ave_image, interpolation='none', extent=[np.min(xaxis), np.max(xaxis), np.min(yaxis), np.max(yaxis)])
+        ave_image = np.array(np.round(ave_image), dtype=np.uint16)    
+
+    plt.imshow(ave_image)#, interpolation='none', extent=[np.min(xaxis), np.max(xaxis), np.min(yaxis), np.max(yaxis)])
     plt.colorbar()
     plt.show()
-    #plt.savefig('average_no_background.pdf')
 
     return ave_image
 
@@ -254,6 +253,7 @@ def select_on_charge(images, charge, max_charge, min_charge):
     print 'Number of data sets in specified range:', n_images
     #print np.shape(images)
     #Getting corresponding images
+    print 'Average charge is: ', np.mean(charge[0,loc])
     charge_images = images[:,:,loc[0]]
 
     return(charge_images, n_images)
@@ -287,6 +287,7 @@ def fit_data(images, fiducials, key):
     sigmax    = np.zeros((n_images))
     sigmay    = np.zeros((n_images))
     fiducial  = fiducials[0][key]
+    print 'fiducial:', fiducial
     print np.shape(images)
     beamsizes = {}
 
@@ -328,11 +329,12 @@ def fit_data(images, fiducials, key):
     #print sigma
     #print(out.fit_report(min_correl=0.25))
 
-    #plt.figure(200)
-    #plt.plot(x_axis, raw_x,         'bo')
-    #plt.plot(x_axis, out.init_fit, 'k--')
-    #plt.plot(x_axis, out.best_fit, 'r-')
-    #plt.show()
+    plt.figure(200)
+    plt.plot(x_axis, raw_x,         'bo')
+    plt.plot(y_axis, raw_y, 'ko')
+    plt.plot(y_axis, outy.best_fit, 'k--')
+    plt.plot(x_axis, outx.best_fit, 'b-')
+    plt.show()
 
     #z = np.polyfit(x_axis, raw_x, 30)
     #f = np.poly1d(z)
@@ -348,12 +350,48 @@ def crop_image(image, x_min=0, x_max=480, y_min=0, y_max=640):
     #Must be one frame
     #dx, dy = image.shape()    
     cropped = image[x_min:x_max, y_min:y_max]
-    plt.figure(400)
-    plt.imshow(cropped)
-    plt.show()
+    #plt.figure(400)
+    #plt.imshow(cropped)
+    #plt.show()
     return(cropped)
+#--------------------------------------------------------------------------------
+def add_dist_to_image(crop, fiducial, basename):
+   from mpl_toolkits.axes_grid1 import make_axes_locatable
 
+   dx, dy = crop.shape
 
+   xaxis   = (np.arange(0,dx) - dx/2)*fiducial
+   yaxis   = (np.arange(0,dy) - dx/2)*fiducial
+
+   fitx, fity = raw_data_curves(crop, oneframe=1)
+   fitxnorm = (fitx - np.min(fitx))/(np.max(fitx)-np.min(fitx))#*15 -20  
+   fitynorm = (fity - np.min(fity))/(np.max(fity)-np.min(fity))#*15 -20 
+ 
+   plt.close("all")
+   fig, ax = plt.subplots(figsize=(10.5, 10.5))
+   ax.set_aspect(1.)
+   divider = make_axes_locatable(ax)
+   axHistx = divider.append_axes("top", 1.25, pad=0.1, sharex=ax)
+   axHisty = divider.append_axes("right", 1.25, pad=0.1, sharey=ax)
+   # make some labels invisible
+   axHistx.xaxis.set_tick_params(labelbottom=False)
+   axHisty.yaxis.set_tick_params(labelleft=False)
+   axHisty.plot(fitxnorm, -xaxis, linewidth=3)
+   axHistx.plot(yaxis, fitynorm, linewidth=3)#, orientation='horizontal') 
+ 
+   cmap = plt.cm.viridis 
+   cmap.set_under(color='white')    
+   color = ax.imshow(crop, interpolation='none', cmap=cmap, vmin=1, extent=[np.min(xaxis), np.max(xaxis), np.min(yaxis), np.max(yaxis)])
+   #ax.plot(xaxis, fitxnorm, '--', linewidth=5, color='firebrick')
+   #ax.plot(yaxis, fitynorm, '--', linewidth=5, color='firebrick') 
+   ax.tick_params(labelsize=12)
+   #axHistx.set_title('YAG 1: Z = 3.1 m', size=20) 
+   axHistx.set_title(basename, size=20)
+   ax.set_xlabel('X [mm]', size=18)
+   ax.set_ylabel('Y [mm]', size=18)
+   plt.colorbar(color,ax=ax, orientation="horizontal", shrink=0.7, pad=0.1)
+   plt.savefig(basename+'.pdf', dpi=1000, bbox_inches='tight')
+   plt.show()
 
 
 def similarity_check(image_array):
@@ -365,10 +403,6 @@ def similarity_check(image_array):
         s_ave = s_ave + s/Nframes 
             
     return s_ave
-
-
-
-
 
  
 def createCircularMask(h, w, center=None, radius=None):
