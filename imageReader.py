@@ -35,6 +35,7 @@ def readimage(imagefile):
     
     # header info vert/horiz pixels and number of frames
     header  = np.fromfile(imagefile, dtype=np.uint16, count=5,sep='')
+    print header
     dx      = int(header[0])
     dy      = int(header[1])
     Nframes = int(header[2])
@@ -361,7 +362,7 @@ def add_dist_to_image(crop, fiducial, basename):
    dx, dy = crop.shape
 
    xaxis   = (np.arange(0,dx) - dx/2)*fiducial
-   yaxis   = (np.arange(0,dy) - dx/2)*fiducial
+   yaxis   = (np.arange(0,dy) - dy/2)*fiducial
 
    fitx, fity = raw_data_curves(crop, oneframe=1)
    fitxnorm = (fitx - np.min(fitx))/(np.max(fitx)-np.min(fitx))#*15 -20  
