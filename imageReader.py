@@ -351,9 +351,9 @@ def crop_image(image, x_min=0, x_max=480, y_min=0, y_max=640):
     #Must be one frame
     #dx, dy = image.shape()    
     cropped = image[x_min:x_max, y_min:y_max]
-    #plt.figure(400)
-    #plt.imshow(cropped)
-    #plt.show()
+    plt.figure(400)
+    plt.imshow(cropped)
+    plt.show()
     return(cropped)
 #--------------------------------------------------------------------------------
 def add_dist_to_image(crop, fiducial, basename):
