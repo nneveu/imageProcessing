@@ -21,8 +21,11 @@ from skimage.measure import compare_ssim as ssim
 from skimage.transform import hough_circle, hough_circle_peaks
 from skimage.feature import canny
 from skimage.draw import circle_perimeter
+from skimage import color
 from lmfit import  Model
 from lmfit.models import GaussianModel, LorentzianModel, VoigtModel
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+from random import *
 
 def readimage(imagefile):
     #This function reads in image data
@@ -35,7 +38,7 @@ def readimage(imagefile):
     
     # header info vert/horiz pixels and number of frames
     header  = np.fromfile(imagefile, dtype=np.uint16, count=5,sep='')
-    print header
+    #print(header)
     dx      = int(header[0])
     dy      = int(header[1])
     Nframes = int(header[2])
@@ -70,7 +73,6 @@ def difilter(image_array, use_filter='median'):
 
     except: 
     #Using filter on all frames
-        
         if use_filter == 'median':
             #Median averages across two pixels
             #Better for salt and pepper background
@@ -88,7 +90,7 @@ def view_each_frame(image_array):
     # If you want to stop looking at the images
     # before reaching the end of the file, 
     # use CTRL+C to stop the python file execution.
-    print image_array.shape
+    print(image_array.shape)
 
     try:
         #x,y,z = image_array.shape
@@ -162,9 +164,9 @@ def background_subtraction(image_array, background_image, max_pixel=1024):
     no_background_image = np.array(np.round(no_background_image), dtype=np.uint16) 
     no_background_image = np.clip(no_background_image, 0, max_pixel)
     
-    #implot = plt.imshow(no_background_image)
-    #plt.colorbar()
-    #plt.show()
+    implot = plt.imshow(no_background_image)
+    plt.colorbar()
+    plt.show()
     return no_background_image 
 
 #-------------------------------------------------------------------------------
@@ -193,15 +195,15 @@ def fiducial_calc(image, sigma=0.25, min_r=0.25, max_r=0.35, YAG_D=44.45):
     lower_limit = int(max(dx,dy)*min_r)
     upper_limit = int(max(dx,dy)*max_r)
     hough_radii = np.arange(lower_limit, upper_limit, 1)
-    print 'Checking this many radii possibilities: ', len(hough_radii)
-    print 'Max radius', np.max(hough_radii), 'Min radius', np.min(hough_radii) 
-    print 'If this number is larger than 40, adjust min_r and max_r to reduce posibilities'
+    print('Checking this many radii possibilities: ', len(hough_radii))
+    print('Max radius', np.max(hough_radii), 'Min radius', np.min(hough_radii)) 
+    print('If this number is larger than 40, adjust min_r and max_r to reduce posibilities')
     #Hough transform accumulator  
     hough_res = hough_circle(edges, hough_radii)    
     # Select the most prominent 3 circles
     accums, cx, cy, radii = hough_circle_peaks(hough_res, hough_radii,total_num_peaks=3)
     # Draw them
-    fig, ax = plt.subplots(ncols=1, nrows=1, figsize=(10, 2))
+    #fig, ax = plt.subplots(ncols=1, nrows=1, figsize=(10, 2))
 
     #rescaling to 8bit for easy inspection
     #This does not effect result, purely for eye double check
@@ -214,20 +216,44 @@ def fiducial_calc(image, sigma=0.25, min_r=0.25, max_r=0.35, YAG_D=44.45):
     test    = test.astype(np.uint8)
 
     image2 = color.gray2rgb(test) 
-    print image2.shape 
+    print(image2.shape)
+    print('radii', radii) 
     for center_y, center_x, radius in zip(cy, cx, radii):
+        fig, ax = plt.subplots(ncols=1, nrows=1, figsize=(10, 2))
         circy, circx = circle_perimeter(center_y, center_x, radius)
-        image2[circy, circx] = (220, 20, 20)
+        print('circy', circy)
+        print('circx', circx)
+        
+        if (all(x <= 480 for x in circx) and all(y <= 640 for y in circy)):
+            #Circle fits in original image
+            image2[circy, circx] = (220, 20, 20)
+            ax.imshow(image2)
+            plt.show()
+        elif (any(x > 480 for x in circx) or any(y > 640 for y in circy)):
+            print('Circle is bigger than image, padding array...')
+            #Amount of padding needed
+            padx = int((np.max(circx) - 480) / 2)
+            pady = int((np.max(circy) - 640) / 2)
+            if padx < 0: 
+                padx=0
+            if pady <0:
+                pady=0
+            print(padx, pady)
+            pad_image = np.pad(image2,((pady+1, pady+1), (padx+1, padx+1), (0, 0)), mode='constant', constant_values=0)
+            print(np.shape(pad_image))
+            pad_image[circy, circx] = (220, 20, 20)
+            ax.imshow(pad_image)
+            plt.show()
+        else: 
+            print('Somethings wrong, circle dimensions out of bounds.')
 
-    ax.imshow(image2)
-    plt.show()
     #plt.imshow(hough_res[-1])
     #plt.show()
     #print accums, radii, cx, cy
     
     #Find mean of radii
     radius = np.mean(radii)
-    print "radii", radii, "radius", radius
+    print("radii", radii, "radius", radius)
     #Radii of YAG can give us fiducial
     YAG_r = YAG_D / 2
     fiducial = YAG_r / radius
@@ -238,8 +264,9 @@ def remove_beam(image, percent_threshold=0.8):
     #Removes brightest part of picture. 
     #Higher threshold means less is removed.
     max_val = np.max(image)
-    image[image > max_val*percent_threshold] = 0
+    image[image > max_val*percent_threshold] = int(random()*5) 
     plt.imshow(image)
+    plt.colorbar()
     plt.show()
     return (image)
 
@@ -251,10 +278,10 @@ def select_on_charge(images, charge, max_charge, min_charge):
     
     loc = np.where( (charge[0,:] > max_charge) & (charge[0,:] < min_charge) )
     n_images = len(loc[0])
-    print 'Number of data sets in specified range:', n_images
+    print('Number of data sets in specified range:', n_images)
     #print np.shape(images)
     #Getting corresponding images
-    print 'Average charge is: ', np.mean(charge[0,loc])
+    print('Average charge is: ', np.mean(charge[0,loc]))
     charge_images = images[:,:,loc[0]]
 
     return(charge_images, n_images)
@@ -268,14 +295,14 @@ def raw_data_curves(image, oneframe=1 ):
     dx, dy = np.shape(image)
     #X fit, one for one sum across lines
     fit_x = np.zeros([dx])
-    for i in xrange(0,dx):     
+    for i in range(0,dx):     
         line = f1[i,:]
         fit_x[i] = np.sum(line)
     
     #Finding y fit
 
     fit_y = np.zeros([dy])
-    for i in xrange(0,dy): 
+    for i in range(0,dy): 
 
         line = f1[:,i]
         fit_y[i] = np.sum(line)
@@ -283,13 +310,13 @@ def raw_data_curves(image, oneframe=1 ):
     return (fit_x, fit_y)
 
 #-------------------------------------------------------------------------------
-def fit_data(images, fiducials, key):
+def fit_data(images, fiducial, filename):
     dx, dy, n_images  = np.shape(images)
     sigmax    = np.zeros((n_images))
     sigmay    = np.zeros((n_images))
-    fiducial  = fiducials[0][key]
-    print 'fiducial:', fiducial
-    print np.shape(images)
+    #fiducial  = fiducials[0][key]
+    print('fiducial:', fiducial)
+    print(np.shape(images))
     beamsizes = {}
 
     mod = GaussianModel()
@@ -314,11 +341,11 @@ def fit_data(images, fiducials, key):
         paramsy = outy.best_values
         sigmay[n]  = paramsy['sigma']
          
-    print 'sigmax', sigmax
-    print 'sigmay', sigmay
+    print('sigmax', sigmax)
+    print('sigmay', sigmay)
     beamsizes['sigmax'] = sigmax 
     beamsizes['sigmay'] = sigmay 
-    np.save('beamsizes_'+key+'.npy', beamsizes)
+    np.save('beamsizes_'+filename+'.npy', beamsizes)
 
     #mod = GaussianModel()
     #mod  = LorentzianModel()
@@ -350,14 +377,13 @@ def fit_data(images, fiducials, key):
 def crop_image(image, x_min=0, x_max=480, y_min=0, y_max=640):
     #Must be one frame
     #dx, dy = image.shape()    
-    cropped = image[x_min:x_max, y_min:y_max]
+    cropped = image[y_min:y_max, x_min:x_max]
     plt.figure(400)
     plt.imshow(cropped)
-    plt.show()
+    #plt.show()
     return(cropped)
 #--------------------------------------------------------------------------------
 def add_dist_to_image(crop, fiducial, basename):
-   from mpl_toolkits.axes_grid1 import make_axes_locatable
 
    dx, dy = crop.shape
 

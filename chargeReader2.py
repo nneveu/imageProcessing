@@ -44,7 +44,7 @@ def csv_to_volts_array(ict_file):
    
     #Counting how many data sets
     date = getline(ict_file,2).split(':')[1]
-    print 'The data was taken on',date
+    print('The data was taken on',date)
     with open(ict_file,'r') as f:
         n_data_sets = sum(len(re.findall(date , line)) for line in f)
     f.close()
@@ -59,11 +59,11 @@ def csv_to_volts_array(ict_file):
     with open(ict_file, 'r') as f:
         for ind, line in enumerate(f,1):
             if date in line:
-                #print date
+                #print(date)
                 for i in range(0,steps):
                     #Adding 4 skips other header 
                     data = getline(ict_file, ind+5+i).split(',')
-                    #print data[0]#, data[1]
+                    #print(data[0]#, data[1])
                     time_array[i,current_col]  = float(data[0])
                     volts_array[i,current_col] = float(data[1].strip())
                 current_col = current_col +1
@@ -147,11 +147,11 @@ def calc_offset(volts, ave_over):
     #print np.abs(test)
     if (np.abs(test) < 0.05):
         #Warning message
-        print 'The offset value is', offset, 'which is close to the max voltage reading', np.min(volts)
-        print 'If you feel those numbers are acceptable, no need to do anything.'
-        print 'To double check the zero line, look at the voltage curve, the zero line is plotted in green.'
-        print 'To adjust the zero line, change the number of points used to calculate the offset.'
-        print 'Change function input "ave_over" to adjust pts: ict_charge_csv(array, ave_over=NNN)'
+        print('The offset value is', offset, 'which is close to the max voltage reading', np.min(volts))
+        print('If you feel those numbers are acceptable, no need to do anything.')
+        print('To double check the zero line, look at the voltage curve, the zero line is plotted in green.')
+        print('To adjust the zero line, change the number of points used to calculate the offset.')
+        print('Change function input "ave_over" to adjust pts: ict_charge_csv(array, ave_over=NNN)')
     return(offset)
 
 
@@ -183,7 +183,7 @@ def ict_charge(volts_array, data_type='none', time_array=0, cal_array=0,ave_over
             offset = calc_offset(volts, ave_over)
             volts = (volts-offset)*vscale #-vposition)*vscale  
         else:
-            print 'Invalid data type, exiting function'
+            print('Invalid data type, exiting function')
             break
         scaled_volts[:,n]  = volts
         #Calculating the charge over the averaged datasets 
@@ -192,10 +192,10 @@ def ict_charge(volts_array, data_type='none', time_array=0, cal_array=0,ave_over
         charge_array[0,n] = charge*(10**9/ict_cal)
    
         if np.abs(charge_array[0,n]) < 0.2:
-            print 'Data is very noisy, please look at voltage curve to verify charge for shot:', n, '\n'
+            print('Data is very noisy, please look at voltage curve to verify charge for shot:', n, '\n')
 
-    print 'Min Charge =', np.max(charge_array),'Max Charge=',  np.min(charge_array)
-    print 'Std is =', np.std(charge_array), 'Mean is=', np.mean(charge_array)
+    print('Min Charge =', np.max(charge_array),'Max Charge=',  np.min(charge_array))
+    print('Std is =', np.std(charge_array), 'Mean is=', np.mean(charge_array))
     return(charge_array, scaled_volts)
     
  
@@ -211,7 +211,7 @@ def plot_ict_curves(scaled_volts, cal=0, base_file='test', n_pdfs=10, time_array
         deltaT = time_array[1,0] - time_array[0,0]
     
     pdffile = 'ICTcruve_' + base_file +'.pdf'
-    print 'Making a pdf of the first', n_pdfs, 'shots' 
+    print('Making a pdf of the first', n_pdfs, 'shots') 
     with PdfPages(pdffile) as pdf:
         
         for v in range(0,n_pdfs):
