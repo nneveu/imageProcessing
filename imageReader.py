@@ -27,7 +27,7 @@ from lmfit.models import GaussianModel, LorentzianModel, VoigtModel
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from random import *
 
-def readimage(imagefile):
+def readimage(imagefile, header_size=6, order_type='F'):
     #This function reads in image data
     # It assumes the first three bits are the 
     # Horizontal size (X), Vertical size (Y),
@@ -35,22 +35,26 @@ def readimage(imagefile):
     
     # count=-1 -> reads all data
     # sep='' -> read file as binary
-    
+    # header_size=5 for old data aquisition (at AWA)  
+    # header_size=3 for new python data aquisition (at AWA)
+ 
     # header info vert/horiz pixels and number of frames
-    header  = np.fromfile(imagefile, dtype=np.uint16, count=5,sep='')
-    #print(header)
-    dx      = int(header[0])
-    dy      = int(header[1])
-    Nframes = int(header[2])
-    length  = dx*dy*Nframes    
-    images  = (np.fromfile(imagefile, dtype=np.uint16, count=-1,sep=''))[6:]
+    data    = np.fromfile(imagefile, dtype=np.uint16, count=-1,sep='')
+    dx      = int(data[0])
+    dy      = int(data[1])
+    Nframes = int(data[2])
+    length  = dx*dy*Nframes   
+    n = header_size + 1
+    images  = data[n:]
+     
+    if length != np.size(images):
+        print('ERROR array size does not match dimensions, check header_size')
     #==========================================================
     #Reading images into 3D array 
     # X by Y by Frame Number
-    #print header 
-    #print images
-    images_array = np.reshape(images,(dx, dy, -1), order='F')
-
+    # order_type can = 'C', 'F', 'A'
+    images_array = np.reshape(images,(dx, dy, -1), order=order_type)
+    #images_array = np.reshape(images,(-1, dx, dy), order=order_type)
     return(dx, dy, Nframes, images_array)  
 
 #-------------------------------------------------------------------------------
