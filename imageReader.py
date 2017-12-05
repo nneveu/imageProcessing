@@ -39,7 +39,7 @@ def readimage(imagefile, header_size=6, order_type='F'):
     # header_size=3 for new python data aquisition (at AWA)
  
     # header info vert/horiz pixels and number of frames
-    data    = np.fromfile(imagefile, dtype=np.uint16, count=-1,sep='')
+    data    = np.fromfile(imagefile, dtype=np.uint16)
     dx      = int(data[0])
     dy      = int(data[1])
     Nframes = int(data[2])
@@ -158,17 +158,23 @@ def background_subtraction(image_array, background_image, max_pixel=1024):
             float_im   = np.array(image_array[:,:,i], dtype=np.float)
             no_background_image[:,:,i] = np.clip(float_im - float_back, 0, max_pixel)
             implot = plt.imshow(no_background_image[:,:,i])
-    #print 'max image', np.max(image_array)
-    #print 'max back', np.max(background_image)
+            frames = True
+            #print 'max image', np.max(image_array)
+            #print 'max back', np.max(background_image)
 
     except: 
         float_im = np.array(image_array, dtype=np.float)
         no_background_image = np.clip(float_im - float_back, 0, None)
-    
+        frames = False
     no_background_image = np.array(np.round(no_background_image), dtype=np.uint16) 
     no_background_image = np.clip(no_background_image, 0, max_pixel)
     
-    implot = plt.imshow(no_background_image)
+    plt.figure()
+    if frames:
+        implot = plt.imshow(no_background_image[:,:,0])
+    else:
+        implot = plt.imshow(no_background_image)
+    
     plt.colorbar()
     plt.show()
     return no_background_image 
@@ -275,7 +281,7 @@ def remove_beam(image, percent_threshold=0.8):
     return (image)
 
 #-------------------------------------------------------------------------------
-def select_on_charge(images, charge, max_charge, min_charge):
+def select_on_charge(images, charge, min_charge, max_charge):
     #Using a positive convention for inputs
     max_charge = -max_charge
     min_charge = -min_charge
