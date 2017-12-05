@@ -63,7 +63,7 @@ def csv_to_volts_array(ict_file):
                 for i in range(0,steps):
                     #Adding 4 skips other header 
                     data = getline(ict_file, ind+5+i).split(',')
-                    #print(data[0]#, data[1])
+                    #print(data[0])#, data[1])
                     time_array[i,current_col]  = float(data[0])
                     volts_array[i,current_col] = float(data[1].strip())
                 current_col = current_col +1
@@ -145,7 +145,7 @@ def calc_offset(volts, ave_over):
     elif min_val >= 0:
         test = offset - min_val
     #print np.abs(test)
-    if (np.abs(test) < 0.05):
+    if (np.abs(test) < 0.0005):
         #Warning message
         print('The offset value is', offset, 'which is close to the max voltage reading', np.min(volts))
         print('If you feel those numbers are acceptable, no need to do anything.')
@@ -210,7 +210,7 @@ def plot_ict_curves(scaled_volts, cal=0, base_file='test', n_pdfs=10, time_array
         timesteps = time_array[:,0]
         deltaT = time_array[1,0] - time_array[0,0]
     
-    pdffile = 'ICTcruve_' + base_file +'.pdf'
+    pdffile = 'ICTcurve_' + base_file +'.pdf'
     print('Making a pdf of the first', n_pdfs, 'shots') 
     with PdfPages(pdffile) as pdf:
         
