@@ -59,6 +59,7 @@ def readimage(imagefile, header_size=6, order_type='F'):
 
 #-------------------------------------------------------------------------------
 def difilter(image_array, use_filter='median'):
+    plt.close('all')
     #Deinterlace and filter
     # Applies a median filter to all images 
     # in image_array. Returns an array that is 
@@ -102,14 +103,16 @@ def view_each_frame(image_array):
         for i in range(0,Nframes):
             image = image_array[:,:,i]
             di_image = difilter(image)
-            plt.figure(1)
+            plt.close('all')
+            plt.figure(1) #closing figures from previous functions
             plt.imshow(di_image)
             plt.show()
 
     except:
         image = image_array
         di_image = difilter(image)
-        plt.figure(1)
+        plt.close('all')
+        plt.figure(1) #closing figures from previous functions
         plt.imshow(di_image)
         plt.show()
 #-------------------------------------------------------------------------------
@@ -118,6 +121,7 @@ def average_images(image_array):
     # image array and averages them to 
     # create one image
     # https://stackoverflow.com/questions/17291455/how-to-get-an-average-picture-from-100-pictures-using-pil
+    plt.close('all') #closing figures from previous functions
 
     #Find dimensions of array
     dx, dy, Nframes= image_array.shape
@@ -130,22 +134,20 @@ def average_images(image_array):
         hold = np.array(image, dtype=np.float)        
         ave_image = ave_image + hold/Nframes
         ave_image = np.array(np.round(ave_image), dtype=np.uint16)    
-
-    print('Showing average image. Close image to continue.....')
-    plt.figure(2)
-    plt.imshow(ave_image)#, interpolation='none', extent=[np.min(xaxis), np.max(xaxis), np.min(yaxis), np.max(yaxis)])
-    plt.colorbar()
-    plt.show()
+    
+    #print('Showing average image. Close image to continue.....')
+    #plt.figure(2)
+    #plt.imshow(ave_image)#, interpolation='none', extent=[np.min(xaxis), np.max(xaxis), np.min(yaxis), np.max(yaxis)])
+    #plt.colorbar()
+    #plt.show()
 
     return ave_image
 
 #-------------------------------------------------------------------------------
 def background_subtraction(image_array, background_image, max_pixel=1024):
     #https://www.raspberrypi.org/forums/viewtopic.php?t=38239&p=316837
-    #Find dimensions of array
-    #dx = len(image_array[:,0,0])
-    #dy = len(image_array[0,:,0])
-    #Nframes = len(image_array[0,0,:])
+    plt.close('all') #closing figures from previous functions
+    
     no_background_image = np.empty_like(image_array)
     float_back = np.array(background_image, dtype=np.float)
  
@@ -154,7 +156,7 @@ def background_subtraction(image_array, background_image, max_pixel=1024):
         for i in range(0,Nframes):
             float_im   = np.array(image_array[:,:,i], dtype=np.float)
             no_background_image[:,:,i] = np.clip(float_im - float_back, 0, max_pixel)
-            implot = plt.imshow(no_background_image[:,:,i])
+            #implot = plt.imshow(no_background_image[:,:,i])
             frames = True
             #print 'max image', np.max(image_array)
             #print 'max back', np.max(background_image)
@@ -166,7 +168,7 @@ def background_subtraction(image_array, background_image, max_pixel=1024):
     no_background_image = np.array(np.round(no_background_image), dtype=np.uint16) 
     no_background_image = np.clip(no_background_image, 0, max_pixel)
 
-    print("Showing image with no background, close image to continue...")    
+    print("Showing first image with no background, close image to continue...")    
     plt.figure(3)
     if frames:
         implot = plt.imshow(no_background_image[:,:,0])
@@ -175,107 +177,20 @@ def background_subtraction(image_array, background_image, max_pixel=1024):
     
     plt.colorbar()
     plt.show()
-    return no_background_image 
+    return(no_background_image) 
 
 #-------------------------------------------------------------------------------
-def fiducial_calc(image, sigma=0.25, min_r=0.25, max_r=0.35, YAG_D=44.45, mask_info=None):
-    #min/max_r = guess at min radius size, in terms of percentage of pixels
-    #This number will be used to search for yag screen. 
-    #So, if YAG is about or larger than half the screen, 0.25 is a good
-    # guess for the radius - i.e. radius is on scale of 1/4 size of image
+def fiducial_calc(radius, YAG_D=44.45 ):
+    #Most fiducial images are looking at the inner circle of the YAG holder.
+    # if this is the case, use a radius = 44.45 mm
+    # If looking at the outer edge of the YAG holder, 
+    # use radius = 50.038 mm
 
-    #http://scikit-image.org/docs/dev/auto_examples/edges/plot_circular_elliptical_hough_transform.html
-    #https://www.pyimagesearch.com/2015/04/06/zero-parameter-automatic-canny-edge-detection-with-python-and-opencv/
-    #https://stackoverflow.com/questions/44865023/circular-masking-an-image-in-python-using-numpy-arrays
-    #https://stackoverflow.com/questions/14464449/using-numpy-to-efficiently-convert-16-bit-image-data-to-8-bit-for-display-with
-    #Only looks at one image right now
-    dx, dy = image.shape
-
-    v = np.median(image)
-    # apply automatic Canny edge detection using the computed median
-
-    lower = int(max(0, (1.0 - sigma) * v))
-    upper = int(min(np.max(image), (1.0 + sigma) * v))
-    edges = canny(image, sigma=1, low_threshold=lower, high_threshold=upper)
-
-    #Making array of possible radius values 
-    #for YAG screen in pixels
-    lower_limit = int(max(dx,dy)*min_r)
-    upper_limit = int(max(dx,dy)*max_r)
-    hough_radii = np.arange(lower_limit, upper_limit, 1)
-    print('Checking this many radii possibilities: ', len(hough_radii))
-    print('Max radius', np.max(hough_radii), 'Min radius', np.min(hough_radii)) 
-    print('If this number is larger than 40, adjust min_r and max_r to reduce posibilities')
-    #Hough transform accumulator  
-    hough_res = hough_circle(edges, hough_radii)    
-    # Select the most prominent 3 circles
-    accums, cx, cy, radii = hough_circle_peaks(hough_res, hough_radii,total_num_peaks=3)
-    # Draw them
-    #fig, ax = plt.subplots(ncols=1, nrows=1, figsize=(10, 2))
-
-    #rescaling to 8bit for easy inspection
-    #This does not effect result, purely for eye double check
-    min_val = np.min(image)
-    max_val = np.max(image)
-    test    = image
-    test    = test.clip(min_val, max_val, out=test)
-    test   -= min_val 
-    np.floor_divide(test, (max_val - min_val + 1) / 256, out=test, casting='unsafe')
-    test    = test.astype(np.uint8)
-
-    image2 = color.gray2rgb(test) 
-    print('image dimensions', image2.shape)
-    #print('radii', radii) 
-    for center_y, center_x, radius in zip(cy, cx, radii):
-        fig, ax = plt.subplots(ncols=1, nrows=1, figsize=(10, 2))
-        circy, circx = circle_perimeter(center_y, center_x, radius)
-        #print('circy', circy)
-        #print('circx', circx)
-        
-        if (all(x <= 480 for x in circx) and all(y <= 640 for y in circy)):
-            #Circle fits in original image
-            image2[circy, circx] = (220, 20, 20)
-            ax.imshow(image2)
-            plt.show()
-        elif (any(x > 480 for x in circx) or any(y > 640 for y in circy)):
-            print('Circle is bigger than image, padding array...')
-            #Amount of padding needed
-            padx = int((np.max(circx) - 480) / 2)
-            pady = int((np.max(circy) - 640) / 2)
-            if padx < 0: 
-                padx=0
-            if pady <0:
-                pady=0
-            print(padx, pady)
-            pad_image = np.pad(image2,((pady+1, pady+1), (padx+1, padx+1), (0, 0)), mode='constant', constant_values=0)
-            print('new image size', np.shape(pad_image))
-            pad_image[circy, circx] = (220, 20, 20)
-            ax.imshow(pad_image)
-            plt.show()
-        else: 
-            print('Somethings wrong, circle dimensions out of bounds.')
-
-    #plt.imshow(hough_res[-1])
-    #plt.show()
-    print(accums, radii, cx, cy)
-    
-    #Find mean of radii
-    center_x = np.mean(cx)
-    center_y = np.mean(cy)
-    radius = np.mean(radii)
-    print("radii", radii, "radius", radius)
-    print("center of circle", [center_x, center_y])
-    if mask_info:
-        save = {}
-        save['radius']   = radius
-        save['center_x'] = center_x
-        save['center_y'] = center_y
-        np.save(mask_info, save)
     #Radii of YAG can give us fiducial
     YAG_r = YAG_D / 2
     fiducial = YAG_r / radius
 
-    return(fiducial, radius)
+    return(fiducial)
 #-------------------------------------------------------------------------------  
 def remove_beam(image, percent_threshold=0.8):
     #Removes brightest part of picture. 
@@ -384,13 +299,14 @@ def fit_data(images, fiducial, filename):
     #sigma  = params['sigma']
     #print sigma
     #print(out.fit_report(min_correl=0.25))
-
+    #plt.close('all') #closing figures from previous functions
     plt.figure(200)
     plt.plot(x_axis, raw_x,         'bo')
     plt.plot(y_axis, raw_y, 'ko')
     plt.plot(y_axis, outy.best_fit, 'k--')
     plt.plot(x_axis, outx.best_fit, 'b-')
-    plt.show()
+    plt.savefig(filename+'.pdf', dpi=1000, bbox_inches='tight') 
+    #plt.show()
 
     #z = np.polyfit(x_axis, raw_x, 30)
     #f = np.poly1d(z)
@@ -406,12 +322,13 @@ def crop_image(image, x_min=0, x_max=480, y_min=0, y_max=640):
     #Must be one frame
     #dx, dy = image.shape()    
     cropped = image[y_min:y_max, x_min:x_max]
-    plt.figure(400)
-    plt.imshow(cropped)
+    #plt.close('all') #closing figures from previous functions
+    #plt.figure(400)
+    #plt.imshow(cropped)
     #plt.show()
     return(cropped)
 #--------------------------------------------------------------------------------
-def add_dist_to_image(crop, fiducial, basename):
+def add_dist_to_image(crop, fiducial, basename, title='no title set', background=1):
 
    dx, dy = crop.shape
 
@@ -422,7 +339,7 @@ def add_dist_to_image(crop, fiducial, basename):
    fitxnorm = (fitx - np.min(fitx))/(np.max(fitx)-np.min(fitx))#*15 -20  
    fitynorm = (fity - np.min(fity))/(np.max(fity)-np.min(fity))#*15 -20 
  
-   plt.close("all")
+   plt.close("all") #closing figures from previous functions
    fig, ax = plt.subplots(figsize=(10.5, 10.5))
    ax.set_aspect(1.)
    divider = make_axes_locatable(ax)
@@ -436,17 +353,16 @@ def add_dist_to_image(crop, fiducial, basename):
  
    cmap = plt.cm.viridis 
    cmap.set_under(color='white')    
-   color = ax.imshow(crop, interpolation='none', cmap=cmap, vmin=1, extent=[np.min(xaxis), np.max(xaxis), np.min(yaxis), np.max(yaxis)])
+   color = ax.imshow(crop, interpolation='none', cmap=cmap, vmin=background, extent=[np.min(xaxis), np.max(xaxis), np.min(yaxis), np.max(yaxis)])
    #ax.plot(xaxis, fitxnorm, '--', linewidth=5, color='firebrick')
    #ax.plot(yaxis, fitynorm, '--', linewidth=5, color='firebrick') 
    ax.tick_params(labelsize=12)
-   #axHistx.set_title('YAG 1: Z = 3.1 m', size=20) 
-   axHistx.set_title(basename, size=20)
+   axHistx.set_title(title, size=20)
    ax.set_xlabel('X [mm]', size=18)
    ax.set_ylabel('Y [mm]', size=18)
    plt.colorbar(color,ax=ax, orientation="horizontal", shrink=0.7, pad=0.1)
    plt.savefig(basename+'.pdf', dpi=1000, bbox_inches='tight')
-   plt.show()
+   #plt.show()
 
 #-------------------------------------------------------------------------------- 
 def similarity_check(image_array):
@@ -576,6 +492,7 @@ def circle_finder(image, sigma=0.25, min_r=0.25, max_r=0.35, n=0):
     print('If the circle is not centered on the YAG, adjust min_r and min_x in circle_finder.')
     print('Continue with rest of script by closing picture.\n')
 
+    plt.close('all') #closing figures from previous functions
     fig, ax = plt.subplots(ncols=1, nrows=1, figsize=(10, 2))
     circy, circx = circle_perimeter(center_y, center_x, radius) 
       
