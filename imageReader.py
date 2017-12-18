@@ -230,12 +230,13 @@ def select_on_charge(images, charge, min_charge, max_charge):
     return(charge_images)#, n_images)
 #-------------------------------------------------------------------------------
 def raw_data_curves(image, oneframe=1 ):
-    # At the moment, this function is only finding the fit for one 
-    # one frame (frame 1). 
+    # At the moment, this function is only finding raw 
+    # data curve for one image frame. 
     if oneframe == 1:
        f1 = image
     
     dx, dy = np.shape(image)
+    print('raw data', dx, dy)
     #X fit, one for one sum across lines
     fit_x = np.zeros([dx])
     for i in range(0,dx):     
@@ -243,7 +244,6 @@ def raw_data_curves(image, oneframe=1 ):
         fit_x[i] = np.sum(line)
     
     #Finding y fit
-
     fit_y = np.zeros([dy])
     for i in range(0,dy): 
 
@@ -254,29 +254,35 @@ def raw_data_curves(image, oneframe=1 ):
 
 #-------------------------------------------------------------------------------
 def fit_data(images, fiducial, filename):
+    #Finding number and size of images
     dx, dy, n_images  = np.shape(images)
+
+    #Creating empty arrays to hold sigma 
+    #value for each image
     sigmax    = np.zeros((n_images))
     sigmay    = np.zeros((n_images))
-    #fiducial  = fiducials[0][key]
-    print('fiducial:', fiducial)
-    print(np.shape(images))
+    print('Using fiducial of:', fiducial, '[mm/pixel]')
+    #print(np.shape(images))
     beamsizes = {}
-
+    
     mod = GaussianModel()
 
     for n in range(0,n_images):
+        #print(n)
         #getting raw data curves 
         raw_x, raw_y = raw_data_curves(images[:,:,n]) 
         x_points = len(raw_x) #x_max = x_points*fiducial
         y_points = len(raw_y) #y_max = y_points*fiducial
-        
+    
+        #Calculating x and y axis in mm, using fiducial (mm/pixel)    
+        #The center of the axis is zero, this is an arbitrary choice
         x_axis   = (np.arange(0,x_points) - x_points/2)*fiducial
         y_axis   = (np.arange(0,y_points) - y_points/2)*fiducial
        
         #Calc sigmax 
-        parsx = mod.guess(raw_x, x=x_axis)
-        outx  = mod.fit(raw_x, parsx, x=x_axis)
-        paramsx = outx.best_values
+        parsx      = mod.guess(raw_x, x=x_axis)
+        outx       = mod.fit(raw_x, parsx, x=x_axis)
+        paramsx    = outx.best_values
         sigmax[n]  = paramsx['sigma']
         #Calc sigmay
         parsy = mod.guess(raw_y, x=y_axis)
@@ -288,11 +294,11 @@ def fit_data(images, fiducial, filename):
     print('sigmay', sigmay)
     beamsizes['sigmax'] = sigmax 
     beamsizes['sigmay'] = sigmay 
-    np.save('beamsizes_'+filename+'.npy', beamsizes)
+    np.save(filename+'.npy', beamsizes)
 
-    #mod = GaussianModel()
+    #mod  = GaussianModel()
     #mod  = LorentzianModel()
-    #mod = VoigtModel()
+    #mod  = VoigtModel()
     #pars = mod.guess(raw_x, x=x_axis)
     #out  = mod.fit(raw_x, pars, x=x_axis)
     #params = out.best_values
@@ -301,10 +307,12 @@ def fit_data(images, fiducial, filename):
     #print(out.fit_report(min_correl=0.25))
     #plt.close('all') #closing figures from previous functions
     plt.figure(200)
-    plt.plot(x_axis, raw_x,         'bo')
-    plt.plot(y_axis, raw_y, 'ko')
+    plt.title('Raw data and Gaussian Fit')
+    plt.plot(x_axis, raw_x, 'b.', label='x-axis')
+    plt.plot(y_axis, raw_y, 'k.', label='y-axis')
     plt.plot(y_axis, outy.best_fit, 'k--')
     plt.plot(x_axis, outx.best_fit, 'b-')
+    plt.legend(loc='best')
     plt.savefig(filename+'.pdf', dpi=1000, bbox_inches='tight') 
     #plt.show()
 
@@ -328,7 +336,7 @@ def crop_image(image, x_min=0, x_max=480, y_min=0, y_max=640):
     #plt.show()
     return(cropped)
 #--------------------------------------------------------------------------------
-def add_dist_to_image(crop, fiducial, basename, title='no title set', background=1):
+def add_dist_to_image(crop, fiducial, filename, title='no title set', background=1):
 
    dx, dy = crop.shape
 
@@ -361,7 +369,7 @@ def add_dist_to_image(crop, fiducial, basename, title='no title set', background
    ax.set_xlabel('X [mm]', size=18)
    ax.set_ylabel('Y [mm]', size=18)
    plt.colorbar(color,ax=ax, orientation="horizontal", shrink=0.7, pad=0.1)
-   plt.savefig(basename+'.pdf', dpi=1000, bbox_inches='tight')
+   plt.savefig(filename+'.pdf', dpi=1000, bbox_inches='tight')
    #plt.show()
 
 #-------------------------------------------------------------------------------- 
