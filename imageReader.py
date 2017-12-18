@@ -168,15 +168,15 @@ def background_subtraction(image_array, background_image, max_pixel=1024):
     no_background_image = np.array(np.round(no_background_image), dtype=np.uint16) 
     no_background_image = np.clip(no_background_image, 0, max_pixel)
 
-    print("Showing first image with no background, close image to continue...")    
-    plt.figure(3)
-    if frames:
-        implot = plt.imshow(no_background_image[:,:,0])
-    else:
-        implot = plt.imshow(no_background_image)
-    
-    plt.colorbar()
-    plt.show()
+    #print("Showing first image with no background, close image to continue...")    
+    #plt.figure(3)
+    #if frames:
+    #    implot = plt.imshow(no_background_image[:,:,0])
+    #else:
+    #    implot = plt.imshow(no_background_image)
+    #
+    #plt.colorbar()
+    #plt.show()
     return(no_background_image) 
 
 #-------------------------------------------------------------------------------
