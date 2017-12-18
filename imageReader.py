@@ -102,18 +102,18 @@ def view_each_frame(image_array):
         for i in range(0,Nframes):
             image = image_array[:,:,i]
             di_image = difilter(image)
-            plt.figure()
+            plt.figure(1)
             plt.imshow(di_image)
             plt.show()
 
     except:
         image = image_array
         di_image = difilter(image)
-        plt.figure()
+        plt.figure(1)
         plt.imshow(di_image)
         plt.show()
 #-------------------------------------------------------------------------------
-def average_images(image_array):#, fiducial='no'):
+def average_images(image_array):
     #This function takes all images in 
     # image array and averages them to 
     # create one image
@@ -121,14 +121,9 @@ def average_images(image_array):#, fiducial='no'):
 
     #Find dimensions of array
     dx, dy, Nframes= image_array.shape
-    #dx = len(image_array[:,0,0])
-    #dy = len(image_array[0,:,0])
-    #print dx, dy
 
     #Array that will hold final image
     ave_image = np.zeros((dx,dy), np.float)
-    #Number of frames to average over
-    #Nframes = len(image_array[0,0,:])
     
     for i in range(0, Nframes):
         image = image_array[:,:,i]
@@ -136,6 +131,8 @@ def average_images(image_array):#, fiducial='no'):
         ave_image = ave_image + hold/Nframes
         ave_image = np.array(np.round(ave_image), dtype=np.uint16)    
 
+    print('Showing average image. Close image to continue.....')
+    plt.figure(2)
     plt.imshow(ave_image)#, interpolation='none', extent=[np.min(xaxis), np.max(xaxis), np.min(yaxis), np.max(yaxis)])
     plt.colorbar()
     plt.show()
@@ -168,8 +165,9 @@ def background_subtraction(image_array, background_image, max_pixel=1024):
         frames = False
     no_background_image = np.array(np.round(no_background_image), dtype=np.uint16) 
     no_background_image = np.clip(no_background_image, 0, max_pixel)
-    
-    plt.figure()
+
+    print("Showing image with no background, close image to continue...")    
+    plt.figure(3)
     if frames:
         implot = plt.imshow(no_background_image[:,:,0])
     else:
@@ -464,7 +462,7 @@ def similarity_check(image_array):
 #-------------------------------------------------------------------------------- 
 def createCircularMask(h, w, center=None, radius=None):
     #https://stackoverflow.com/questions/44865023/circular-masking-an-image-in-python-using-numpy-arrays
-    #mask = createCircularMask(dy, dx, center=[cy,cx], radius=np.mean(radii))
+    #mask = createCircularMask(dy, dx, center=[cx,cy], radius=np.mean(radii))
 
     if center is None: # use the middle of the image
         center = [int(w/2), int(h/2)]
@@ -478,22 +476,33 @@ def createCircularMask(h, w, center=None, radius=None):
     return mask
 
 #-------------------------------------------------------------------------------- 
-def mask_images(image_array, h, w): #, im_center, im_radius):
+def mask_images(image_array, circle_dim): #, im_center, im_radius):
+    #This function takes in the YAG circle dimensions
+    # and uses that info to mask all data outside the YAG circle. 
+    im_center = [circle_dim['center_x'], circle_dim['center_y']]
+  
+    #Getting dimensions of image array 
+    try: 
+        h, w, z = image_array.shape  
+    except:
+        h, w = image_array.shape
+        z = 1
 
-    
-    mask = createCircularMask(h, w, center=im_center, radius=im_radius)
+    #Creating mask using YAG circle dimensions, see function above
+    mask = createCircularMask(h, w, center=im_center, radius=circle_dim['radius'])
     masked_img = image_array.copy()
-    
-    try:
-        x,y,z = image_array.shape 
-        print(x,y,z)
+   
+    if z > 1: 
         for i in range(0,z):
-            hold              = masked_img[:,:,0]
+            hold              = masked_img[:,:,i]
             hold[~mask]       = 0
             masked_img[:,:,i] = hold   
-    except:
+    else:
         masked_img[~mask] = 0 
-        
+       
+    #print('Showing masked image. Close picture to continue..')
+    #plt.imshow(masked_img[:,:,0])
+    #plt.show() 
     return(masked_img)
 #-------------------------------------------------------------------------------- 
 def circle_finder(image, sigma=0.25, min_r=0.25, max_r=0.35, n=0):
@@ -531,8 +540,8 @@ def circle_finder(image, sigma=0.25, min_r=0.25, max_r=0.35, n=0):
     except:
         dx, dy = image.shape
     print('\nFinding circle in image with dimensions', image.shape)
-    plt.imshow(image)
-    plt.show()
+    #plt.imshow(image)
+    #plt.show()
 
     v = np.median(image)
     
@@ -547,25 +556,28 @@ def circle_finder(image, sigma=0.25, min_r=0.25, max_r=0.35, n=0):
     upper_limit = int(max(dx,dy)*max_r)
     hough_radii = np.arange(lower_limit, upper_limit, 1)
     print('Checking this many radii possibilities: ', len(hough_radii))
-    print('If this number is larger than 40, adjust min_r and max_r to reduce posibilities')
-    print('Max radius', np.max(hough_radii), 'Min radius', np.min(hough_radii))
+    if len(hough_radii) > 40: 
+        print('This number is larger than 40, adjust min_r and max_r to reduce posibilities')
+    print('Range of radius values '+str(np.max(hough_radii))+'-'+ str(np.min(hough_radii)))
     #Hough transform accumulator  
     hough_res = hough_circle(edges, hough_radii)    
     # Select the most prominent 3 circles
     accums, cx, cy, radii = hough_circle_peaks(hough_res, hough_radii,total_num_peaks=3)
 
+    #Averaging the 3 best options to 
+    #get center and radius of YAG screen
     center_y = int(round(np.mean(cy)))
     center_x = int(round(np.mean(cx)))
     radius   = int(round(np.mean(radii)))
-    print('radii', radius, 'cx', center_x, 'cy', center_y)
-    #for center_y, center_x, radius in zip(cy, cx, radii):
-    #    print('radii', radius, 'cx', center_x, 'cy', center_y)
-    
+    print('- Now showing results - ')
+    print('radius:', radius, '\ncenter_x:', center_x, '\ncenter_y:', center_y)
+    print('Now showing image with resulting circle.')
+    print('This is merely for visual confirmation and peace of mind.')
+    print('If the circle is not centered on the YAG, adjust min_r and min_x in circle_finder.')
+    print('Continue with rest of script by closing picture.\n')
+
     fig, ax = plt.subplots(ncols=1, nrows=1, figsize=(10, 2))
     circy, circx = circle_perimeter(center_y, center_x, radius) 
-        #center_y, center_x, radius)
-    print('circy', circy)
-    print('circx', circx)
       
     #rescaling to 8bit for easy inspection
     #This does not effect result, purely for eye double check
@@ -577,8 +589,8 @@ def circle_finder(image, sigma=0.25, min_r=0.25, max_r=0.35, n=0):
     np.floor_divide(test, (max_val - min_val + 1) / 256, out=test, casting='unsafe')
     test    = test.astype(np.uint8)
     image2 = color.gray2rgb(test) 
-    plt.imshow(image2)
-    plt.show()
+    #plt.imshow(image2)
+    #plt.show()
  
     if (all(x <= 480 for x in circx) and all(y <= 640 for y in circy)):
         #Circle fits in original image
@@ -603,14 +615,12 @@ def circle_finder(image, sigma=0.25, min_r=0.25, max_r=0.35, n=0):
     else: 
             print('Somethings wrong, circle dimensions out of bounds.')
 
-    #Find mean of radii
-    center_x = np.mean(cx)
-    center_y = np.mean(cy)
-    radius = np.mean(radii)
-    print("radii", radii, "radius", radius)
-    print("center of circle", [center_x, center_y])
+    circle_dimensions = {}
+    circle_dimensions['radius']   = radius
+    circle_dimensions['center_x'] = center_x
+    circle_dimensions['center_y'] = center_y
 
-    return(0)
+    return(circle_dimensions)
 
 
 
