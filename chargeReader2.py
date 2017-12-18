@@ -48,7 +48,7 @@ def csv_to_volts_array(ict_file):
     with open(ict_file,'r') as f:
         n_data_sets = sum(len(re.findall(date , line)) for line in f)
     f.close()
-    print('This many data sets were taken: ', n_data_sets)
+    print('A total of', n_data_sets, 'data sets were taken')
   
     #Loading data  
     #Making arrays with charge and no text

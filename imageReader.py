@@ -40,8 +40,8 @@ def readimage(imagefile, header_size=6, order_type='F'):
  
     # header info vert/horiz pixels and number of frames
     data    = np.fromfile(imagefile, dtype=np.uint16)
-    dx      = int(data[0])
-    dy      = int(data[1])
+    dx      = int(data[1])
+    dy      = int(data[0])
     Nframes = int(data[2])
     length  = dx*dy*Nframes   
     n = header_size + 1
@@ -53,7 +53,7 @@ def readimage(imagefile, header_size=6, order_type='F'):
     #Reading images into 3D array 
     # X by Y by Frame Number
     # order_type can = 'C', 'F', 'A'
-    images_array = np.reshape(images,(dx, dy, -1), order=order_type)
+    images_array = np.reshape(images,(dy, dx, -1), order=order_type)
     #images_array = np.reshape(images,(-1, dx, dy), order=order_type)
     return(dx, dy, Nframes, images_array)  
 
@@ -180,7 +180,7 @@ def background_subtraction(image_array, background_image, max_pixel=1024):
     return no_background_image 
 
 #-------------------------------------------------------------------------------
-def fiducial_calc(image, sigma=0.25, min_r=0.25, max_r=0.35, YAG_D=44.45):
+def fiducial_calc(image, sigma=0.25, min_r=0.25, max_r=0.35, YAG_D=44.45, mask_info=None):
     #min/max_r = guess at min radius size, in terms of percentage of pixels
     #This number will be used to search for yag screen. 
     #So, if YAG is about or larger than half the screen, 0.25 is a good
@@ -226,13 +226,13 @@ def fiducial_calc(image, sigma=0.25, min_r=0.25, max_r=0.35, YAG_D=44.45):
     test    = test.astype(np.uint8)
 
     image2 = color.gray2rgb(test) 
-    print(image2.shape)
-    print('radii', radii) 
+    print('image dimensions', image2.shape)
+    #print('radii', radii) 
     for center_y, center_x, radius in zip(cy, cx, radii):
         fig, ax = plt.subplots(ncols=1, nrows=1, figsize=(10, 2))
         circy, circx = circle_perimeter(center_y, center_x, radius)
-        print('circy', circy)
-        print('circx', circx)
+        #print('circy', circy)
+        #print('circx', circx)
         
         if (all(x <= 480 for x in circx) and all(y <= 640 for y in circy)):
             #Circle fits in original image
@@ -250,7 +250,7 @@ def fiducial_calc(image, sigma=0.25, min_r=0.25, max_r=0.35, YAG_D=44.45):
                 pady=0
             print(padx, pady)
             pad_image = np.pad(image2,((pady+1, pady+1), (padx+1, padx+1), (0, 0)), mode='constant', constant_values=0)
-            print(np.shape(pad_image))
+            print('new image size', np.shape(pad_image))
             pad_image[circy, circx] = (220, 20, 20)
             ax.imshow(pad_image)
             plt.show()
@@ -259,16 +259,25 @@ def fiducial_calc(image, sigma=0.25, min_r=0.25, max_r=0.35, YAG_D=44.45):
 
     #plt.imshow(hough_res[-1])
     #plt.show()
-    #print accums, radii, cx, cy
+    print(accums, radii, cx, cy)
     
     #Find mean of radii
+    center_x = np.mean(cx)
+    center_y = np.mean(cy)
     radius = np.mean(radii)
     print("radii", radii, "radius", radius)
+    print("center of circle", [center_x, center_y])
+    if mask_info:
+        save = {}
+        save['radius']   = radius
+        save['center_x'] = center_x
+        save['center_y'] = center_y
+        np.save(mask_info, save)
     #Radii of YAG can give us fiducial
     YAG_r = YAG_D / 2
     fiducial = YAG_r / radius
 
-    return(fiducial)
+    return(fiducial, radius)
 #-------------------------------------------------------------------------------  
 def remove_beam(image, percent_threshold=0.8):
     #Removes brightest part of picture. 
@@ -282,19 +291,30 @@ def remove_beam(image, percent_threshold=0.8):
 
 #-------------------------------------------------------------------------------
 def select_on_charge(images, charge, min_charge, max_charge):
-    #Using a positive convention for inputs
-    max_charge = -max_charge
-    min_charge = -min_charge
+    #Using a positive convention for inputs.
+    #This means a larger negative number is the max charge.
+    #    i.e. -40nC is larger than -20nC
+    if ((max_charge*min_charge) > 0) & (max_charge<0):
+        pass
+    elif ((max_charge < 0) & (min_charge > 0)) or ((max_charge > 0) & (min_charge < 0)):
+        print("You entered charge values with different signs")
+        print("Please check charge values and try again")
+        print("Leaving this function now...bye bye!")
+        return None 
+
+    elif (max_charge*min_charge) > 0:  
+        max_charge = -max_charge
+        min_charge = -min_charge
     
     loc = np.where( (charge[0,:] > max_charge) & (charge[0,:] < min_charge) )
-    n_images = len(loc[0])
-    print('Number of data sets in specified range:', n_images)
+    #n_images = len(loc[0])
+    print('Number of data sets in specified charge range:', len(loc[0]))#n_images)
     #print np.shape(images)
     #Getting corresponding images
-    print('Average charge is: ', np.mean(charge[0,loc]))
+    print('Average charge in specifed range is: ', np.mean(charge[0,loc]))
     charge_images = images[:,:,loc[0]]
 
-    return(charge_images, n_images)
+    return(charge_images)#, n_images)
 #-------------------------------------------------------------------------------
 def raw_data_curves(image, oneframe=1 ):
     # At the moment, this function is only finding the fit for one 
@@ -430,7 +450,7 @@ def add_dist_to_image(crop, fiducial, basename):
    plt.savefig(basename+'.pdf', dpi=1000, bbox_inches='tight')
    plt.show()
 
-
+#-------------------------------------------------------------------------------- 
 def similarity_check(image_array):
     #http://scikit-image.org/docs/dev/auto_examples/transform/plot_ssim.html
     Nframes = len(image_array[0,0,:])
@@ -441,7 +461,7 @@ def similarity_check(image_array):
             
     return s_ave
 
- 
+#-------------------------------------------------------------------------------- 
 def createCircularMask(h, w, center=None, radius=None):
     #https://stackoverflow.com/questions/44865023/circular-masking-an-image-in-python-using-numpy-arrays
     #mask = createCircularMask(dy, dx, center=[cy,cx], radius=np.mean(radii))
@@ -457,7 +477,144 @@ def createCircularMask(h, w, center=None, radius=None):
     mask = dist_from_center <= radius
     return mask
 
+#-------------------------------------------------------------------------------- 
+def mask_images(image_array, h, w): #, im_center, im_radius):
+
+    
+    mask = createCircularMask(h, w, center=im_center, radius=im_radius)
+    masked_img = image_array.copy()
+    
+    try:
+        x,y,z = image_array.shape 
+        print(x,y,z)
+        for i in range(0,z):
+            hold              = masked_img[:,:,0]
+            hold[~mask]       = 0
+            masked_img[:,:,i] = hold   
+    except:
+        masked_img[~mask] = 0 
+        
+    return(masked_img)
+#-------------------------------------------------------------------------------- 
+def circle_finder(image, sigma=0.25, min_r=0.25, max_r=0.35, n=0):
+    #This function finds the yag screen and returns the 
+    # dimensions of the circle in a dictionary. 
+    # This info can be used to find the fiducial 
+    # of the image and create a mask.
+
+    # n = image location, if there is more than one image in array and 
+    #     you do not want to use the first image as the fiducial. 
+    #     Default is to use the first image, assuming all images
+    #     in the fiducial file are nearly identical
+
+    # min/max_r = guess at min radius size, in terms of percentage of pixels
+    #             This number will be used to search for yag screen. 
+    #             If the YAG is larger than half the screen, 0.25 is a good
+    #             guess for the radius 
+    #             i.e. radius is on scale of 1/4 size of image
+    
+    # sigma = 
+
+    # image = fiducial image where the YAG circule is clear
+   
+    #Sources referenced:
+    #http://scikit-image.org/docs/dev/auto_examples/edges/plot_circular_elliptical_hough_transform.html
+    #https://www.pyimagesearch.com/2015/04/06/zero-parameter-automatic-canny-edge-detection-with-python-and-opencv/
+    #https://stackoverflow.com/questions/44865023/circular-masking-an-image-in-python-using-numpy-arrays
+    #https://stackoverflow.com/questions/14464449/using-numpy-to-efficiently-convert-16-bit-image-data-to-8-bit-for-display-with
+    
+    #Getting dimensions of image
+    #Grabbing first image if multiple shots
+    try: 
+        dx, dy, dz = image.shape
+        image = image[:,:,n]
+    except:
+        dx, dy = image.shape
+    print('\nFinding circle in image with dimensions', image.shape)
+    plt.imshow(image)
+    plt.show()
+
+    v = np.median(image)
+    
+    # apply automatic Canny edge detection using the computed median
+    lower = int(max(0, (1.0 - sigma) * v))
+    upper = int(min(np.max(image), (1.0 + sigma) * v))
+    edges = canny(image, sigma=1, low_threshold=lower, high_threshold=upper)
+
+    #Making array of possible radius values 
+    #for YAG screen in pixels
+    lower_limit = int(max(dx,dy)*min_r)
+    upper_limit = int(max(dx,dy)*max_r)
+    hough_radii = np.arange(lower_limit, upper_limit, 1)
+    print('Checking this many radii possibilities: ', len(hough_radii))
+    print('If this number is larger than 40, adjust min_r and max_r to reduce posibilities')
+    print('Max radius', np.max(hough_radii), 'Min radius', np.min(hough_radii))
+    #Hough transform accumulator  
+    hough_res = hough_circle(edges, hough_radii)    
+    # Select the most prominent 3 circles
+    accums, cx, cy, radii = hough_circle_peaks(hough_res, hough_radii,total_num_peaks=3)
+
+    center_y = int(round(np.mean(cy)))
+    center_x = int(round(np.mean(cx)))
+    radius   = int(round(np.mean(radii)))
+    print('radii', radius, 'cx', center_x, 'cy', center_y)
+    #for center_y, center_x, radius in zip(cy, cx, radii):
+    #    print('radii', radius, 'cx', center_x, 'cy', center_y)
+    
+    fig, ax = plt.subplots(ncols=1, nrows=1, figsize=(10, 2))
+    circy, circx = circle_perimeter(center_y, center_x, radius) 
+        #center_y, center_x, radius)
+    print('circy', circy)
+    print('circx', circx)
+      
+    #rescaling to 8bit for easy inspection
+    #This does not effect result, purely for eye double check
+    min_val = np.min(image)
+    max_val = np.max(image)
+    test    = image
+    test    = test.clip(min_val, max_val, out=test)
+    test   -= min_val 
+    np.floor_divide(test, (max_val - min_val + 1) / 256, out=test, casting='unsafe')
+    test    = test.astype(np.uint8)
+    image2 = color.gray2rgb(test) 
+    plt.imshow(image2)
+    plt.show()
  
+    if (all(x <= 480 for x in circx) and all(y <= 640 for y in circy)):
+        #Circle fits in original image
+        image2[circy, circx] = (220, 20, 20)
+        ax.imshow(image2)
+        plt.show()
+    elif (any(x > 480 for x in circx) or any(y > 640 for y in circy)):
+        print('Circle is bigger than image, padding array...')
+            #Amount of padding needed
+        padx = int((np.max(circx) - 480) / 2)
+        pady = int((np.max(circy) - 640) / 2)
+        if padx < 0: 
+            padx=0
+        if pady <0:
+            pady=0
+        print(padx, pady)
+        pad_image = np.pad(image2,((pady+1, pady+1), (padx+1, padx+1), (0, 0)), mode='constant', constant_values=0)
+        print('new image size', np.shape(pad_image))
+        pad_image[circy, circx] = (220, 20, 20)
+        ax.imshow(pad_image)
+        plt.show()
+    else: 
+            print('Somethings wrong, circle dimensions out of bounds.')
+
+    #Find mean of radii
+    center_x = np.mean(cx)
+    center_y = np.mean(cy)
+    radius = np.mean(radii)
+    print("radii", radii, "radius", radius)
+    print("center of circle", [center_x, center_y])
+
+    return(0)
+
+
+
+
 # mask = rotate>0
 # rotate = skimage.transform.rotate(edges, 0.0, resize=True)
 # crop = rotate[np.ix_(mask.any(1),mask.any(0))]
