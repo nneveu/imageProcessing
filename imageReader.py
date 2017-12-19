@@ -21,7 +21,7 @@ from skimage.feature import canny
 from skimage.draw import circle_perimeter
 from skimage import color
 from lmfit import  Model
-from lmfit.models import GaussianModel, LorentzianModel, VoigtModel
+from lmfit.models import StepModel, GaussianModel, LorentzianModel, VoigtModel
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from random import *
 from matplotlib.backends.backend_pdf import PdfPages
@@ -253,6 +253,10 @@ def raw_data_curves(image, oneframe=1 ):
 
 #-------------------------------------------------------------------------------
 def fit_data(images, fiducial, filename):
+    #https://lmfit.github.io/lmfit-py/builtin_models.html
+    #https://lmfit.github.io/lmfit-py/builtin_models.html#lmfit.models.GaussianModel
+    #https://lmfit.github.io/lmfit-py/model.html#lmfit.model.ModelResult
+ 
     #Finding number and size of images
     dx, dy, n_images  = np.shape(images)
 
@@ -263,8 +267,10 @@ def fit_data(images, fiducial, filename):
     print('Using fiducial of:', fiducial, '[mm/pixel]')
     #print(np.shape(images))
     beamsizes = {}
-    mod = GaussianModel()
-    
+    mod   = GaussianModel()
+    #mod  = LorentzianModel()
+    #mod  = VoigtModel()
+ 
     plt.close('all') #closing figures from previous functions
     pdffile =  filename +'_fit_curves.pdf'
     print('Calculating the fits and plotting the results...')
@@ -287,50 +293,64 @@ def fit_data(images, fiducial, filename):
             outx       = mod.fit(raw_x, parsx, x=x_axis)
             paramsx    = outx.best_values
             sigmax[n]  = paramsx['sigma']
+            #print(parsx.keys()) # = odict_keys(['sigma', 'center', 'amplitude', 'fwhm', 'height'])
+
+            #['chi-square']
             #Calc sigmay
             parsy = mod.guess(raw_y, x=y_axis)
             outy  = mod.fit(raw_y, parsy, x=y_axis) 
             paramsy = outy.best_values
             sigmay[n]  = paramsy['sigma']
-    
-            #Plotting curves 
-            plt.title('Raw data and Gaussian Fit')
-            plt.xlabel('[mm]', size=14)
-            plt.ylabel('Pixel Intensity [arb. units]', size=14)
-            plt.plot(x_axis, raw_x, 'b.', label='x-axis')
-            plt.plot(y_axis, raw_y, 'k.', label='y-axis')
-            plt.plot(y_axis, outy.best_fit, 'k--')
-            plt.plot(x_axis, outx.best_fit, 'b-')
-            plt.legend(loc='best')
-            pdf.savefig(bbox_inches='tight')
-            plt.close()
+            
+           
+            ##Plotting curves 
+            #plt.title('Raw data and Gaussian Fit')
+            #plt.xlabel('[mm]', size=14)
+            #plt.ylabel('Pixel Intensity [arb. units]', size=14)
+            #plt.plot(x_axis, raw_x, 'b.', label='x-axis')
+            #plt.plot(y_axis, raw_y, 'k.', label='y-axis')
+            #plt.plot(y_axis, outy.best_fit, 'k--')
+            #plt.plot(x_axis, outx.best_fit, 'b-')
+            #plt.legend(loc='best')
+            #pdf.savefig(bbox_inches='tight')
+            #plt.close()
     plt.close('all')
-     
-    print('sigmax', sigmax)
-    print('sigmay', sigmay)
+    
+    print('\nX chi-sq:')
+    print(outx.chisqr)
+    #print(outx.fit_report())
+    print('\nY chi-sq:')
+    print(outy.chisqr)
+           
+    #print('sigmax', sigmax)
+    #print('sigmay', sigmay)
     beamsizes['sigmax'] = sigmax 
     beamsizes['sigmay'] = sigmay 
     np.save(filename+'.npy', beamsizes)
 
-    #mod  = GaussianModel()
-    #mod  = LorentzianModel()
-    #mod  = VoigtModel()
     #pars = mod.guess(raw_x, x=x_axis)
     #out  = mod.fit(raw_x, pars, x=x_axis)
     #params = out.best_values
     #sigma  = params['sigma']
-    #print sigma
-    #print(out.fit_report(min_correl=0.25))
-    
+        
     #z = np.polyfit(x_axis, raw_x, 30)
     #f = np.poly1d(z)
     #y_new = f(x_axis)
     #popt, pcov = curve_fit(raw_x, x_axis, ydata)
-    #plt.figure(300)
     #plt.plot(x_axis, raw_x)
     #plt.plot(x_axis, y_new)
-    #plt.show()
     return (beamsizes)
+
+#-------------------------------------------------------------------------------
+def combo_model():
+    step_mod  = GaussianModel(prefix='gauss_')
+    gauss_mod = StepModel(prefix='step_')
+    
+    pars =  line_mod.make_params(intercept=y.min(), slope=0)
+    pars += step_mod.guess(y, x=x, center=2.5)
+    
+    mod = step_mod + line_mod
+    out = mod.fit(y, pars, x=x)
 #-------------------------------------------------------------------------------
 def crop_image(image, x_min=0, x_max=480, y_min=0, y_max=640):
     #Must be one frame
