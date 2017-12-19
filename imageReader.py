@@ -1,11 +1,9 @@
 # -*- coding: utf-8 -*-
 """
 Created on Wed Nov 02 09:57:59 2016
-Updated on Fri Sep 23-27 
+Updated Sep-Dec 2017  
 
-@author: nneveu (the best!)
-
-Load YAG screen images.
+@author: nneveu 
 
 Sources include:
 Wiki
@@ -26,6 +24,7 @@ from lmfit import  Model
 from lmfit.models import GaussianModel, LorentzianModel, VoigtModel
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from random import *
+from matplotlib.backends.backend_pdf import PdfPages
 
 def readimage(imagefile, header_size=6, order_type='F'):
     #This function reads in image data
@@ -236,7 +235,7 @@ def raw_data_curves(image, oneframe=1 ):
        f1 = image
     
     dx, dy = np.shape(image)
-    print('raw data', dx, dy)
+    #print('raw data', dx, dy)
     #X fit, one for one sum across lines
     fit_x = np.zeros([dx])
     for i in range(0,dx):     
@@ -264,32 +263,49 @@ def fit_data(images, fiducial, filename):
     print('Using fiducial of:', fiducial, '[mm/pixel]')
     #print(np.shape(images))
     beamsizes = {}
-    
     mod = GaussianModel()
-
-    for n in range(0,n_images):
-        #print(n)
-        #getting raw data curves 
-        raw_x, raw_y = raw_data_curves(images[:,:,n]) 
-        x_points = len(raw_x) #x_max = x_points*fiducial
-        y_points = len(raw_y) #y_max = y_points*fiducial
     
-        #Calculating x and y axis in mm, using fiducial (mm/pixel)    
-        #The center of the axis is zero, this is an arbitrary choice
-        x_axis   = (np.arange(0,x_points) - x_points/2)*fiducial
-        y_axis   = (np.arange(0,y_points) - y_points/2)*fiducial
-       
-        #Calc sigmax 
-        parsx      = mod.guess(raw_x, x=x_axis)
-        outx       = mod.fit(raw_x, parsx, x=x_axis)
-        paramsx    = outx.best_values
-        sigmax[n]  = paramsx['sigma']
-        #Calc sigmay
-        parsy = mod.guess(raw_y, x=y_axis)
-        outy  = mod.fit(raw_y, parsy, x=y_axis) 
-        paramsy = outy.best_values
-        sigmay[n]  = paramsy['sigma']
-         
+    plt.close('all') #closing figures from previous functions
+    pdffile =  filename +'_fit_curves.pdf'
+    print('Calculating the fits and plotting the results...')
+    with PdfPages(pdffile) as pdf:
+
+        for n in range(0,n_images):
+            #print(n)
+            #getting raw data curves 
+            raw_x, raw_y = raw_data_curves(images[:,:,n]) 
+            x_points = len(raw_x) #x_max = x_points*fiducial
+            y_points = len(raw_y) #y_max = y_points*fiducial
+        
+            #Calculating x and y axis in mm, using fiducial (mm/pixel)    
+            #The center of the axis is zero, this is an arbitrary choice
+            x_axis   = (np.arange(0,x_points) - x_points/2)*fiducial
+            y_axis   = (np.arange(0,y_points) - y_points/2)*fiducial
+           
+            #Calc sigmax 
+            parsx      = mod.guess(raw_x, x=x_axis)
+            outx       = mod.fit(raw_x, parsx, x=x_axis)
+            paramsx    = outx.best_values
+            sigmax[n]  = paramsx['sigma']
+            #Calc sigmay
+            parsy = mod.guess(raw_y, x=y_axis)
+            outy  = mod.fit(raw_y, parsy, x=y_axis) 
+            paramsy = outy.best_values
+            sigmay[n]  = paramsy['sigma']
+    
+            #Plotting curves 
+            plt.title('Raw data and Gaussian Fit')
+            plt.xlabel('[mm]', size=14)
+            plt.ylabel('Pixel Intensity [arb. units]', size=14)
+            plt.plot(x_axis, raw_x, 'b.', label='x-axis')
+            plt.plot(y_axis, raw_y, 'k.', label='y-axis')
+            plt.plot(y_axis, outy.best_fit, 'k--')
+            plt.plot(x_axis, outx.best_fit, 'b-')
+            plt.legend(loc='best')
+            pdf.savefig(bbox_inches='tight')
+            plt.close()
+    plt.close('all')
+     
     print('sigmax', sigmax)
     print('sigmay', sigmay)
     beamsizes['sigmax'] = sigmax 
@@ -305,17 +321,7 @@ def fit_data(images, fiducial, filename):
     #sigma  = params['sigma']
     #print sigma
     #print(out.fit_report(min_correl=0.25))
-    #plt.close('all') #closing figures from previous functions
-    plt.figure(200)
-    plt.title('Raw data and Gaussian Fit')
-    plt.plot(x_axis, raw_x, 'b.', label='x-axis')
-    plt.plot(y_axis, raw_y, 'k.', label='y-axis')
-    plt.plot(y_axis, outy.best_fit, 'k--')
-    plt.plot(x_axis, outx.best_fit, 'b-')
-    plt.legend(loc='best')
-    plt.savefig(filename+'.pdf', dpi=1000, bbox_inches='tight') 
-    #plt.show()
-
+    
     #z = np.polyfit(x_axis, raw_x, 30)
     #f = np.poly1d(z)
     #y_new = f(x_axis)
@@ -337,17 +343,29 @@ def crop_image(image, x_min=0, x_max=480, y_min=0, y_max=640):
     return(cropped)
 #--------------------------------------------------------------------------------
 def add_dist_to_image(crop, fiducial, filename, title='no title set', background=1):
+   plt.close("all") #closing figures from previous functions
+   #Currently only takes 1 frame
 
+   #This function is mostly plot formatting.
+   # step 0 - calc axis values in mm
+   # step 1 - calc x and y projection
+   # step 2 - normalize projections
+   # step 3 - format plots
+
+   #Getting shape of image
    dx, dy = crop.shape
 
+   #Calculating x and y axis in mm, using fiducial (mm/pixel)    
+   #The center of the axis is zero, this is an arbitrary choice
    xaxis   = (np.arange(0,dx) - dx/2)*fiducial
    yaxis   = (np.arange(0,dy) - dy/2)*fiducial
 
+   #Calc projection and normalize
    fitx, fity = raw_data_curves(crop, oneframe=1)
    fitxnorm = (fitx - np.min(fitx))/(np.max(fitx)-np.min(fitx))#*15 -20  
    fitynorm = (fity - np.min(fity))/(np.max(fity)-np.min(fity))#*15 -20 
  
-   plt.close("all") #closing figures from previous functions
+   #Figure formatting and plotting
    fig, ax = plt.subplots(figsize=(10.5, 10.5))
    ax.set_aspect(1.)
    divider = make_axes_locatable(ax)
@@ -440,15 +458,16 @@ def circle_finder(image, sigma=0.25, min_r=0.25, max_r=0.35, n=0):
     #     Default is to use the first image, assuming all images
     #     in the fiducial file are nearly identical
 
-    # min/max_r = guess at min radius size, in terms of percentage of pixels
-    #             This number will be used to search for yag screen. 
-    #             If the YAG is larger than half the screen, 0.25 is a good
-    #             guess for the radius 
+    # min/max_r = guess at min radius size, in percentage of pixels
+    #             This number will be used to search for the YAG screen. 
+    #             If the YAG is larger than half the image, 
+    #             0.25 is a good guess for the radius 
     #             i.e. radius is on scale of 1/4 size of image
     
     # sigma = 
 
-    # image = fiducial image where the YAG circule is clear
+    # image = fiducial image where the YAG circule is clear, preferably, with no beam. 
+    #         If there is beam, use the remove_beam() function first.
    
     #Sources referenced:
     #http://scikit-image.org/docs/dev/auto_examples/edges/plot_circular_elliptical_hough_transform.html
@@ -468,7 +487,8 @@ def circle_finder(image, sigma=0.25, min_r=0.25, max_r=0.35, n=0):
     #plt.show()
 
     v = np.median(image)
-    
+   
+    #Make edges sharper  
     # apply automatic Canny edge detection using the computed median
     lower = int(max(0, (1.0 - sigma) * v))
     upper = int(min(np.max(image), (1.0 + sigma) * v))
@@ -496,7 +516,7 @@ def circle_finder(image, sigma=0.25, min_r=0.25, max_r=0.35, n=0):
     print('- Now showing results - ')
     print('radius:', radius, '\ncenter_x:', center_x, '\ncenter_y:', center_y)
     print('Now showing image with resulting circle.')
-    print('This is merely for visual confirmation and peace of mind.')
+    print('This is for visual confirmation and no further input is needed.')
     print('If the circle is not centered on the YAG, adjust min_r and min_x in circle_finder.')
     print('Continue with rest of script by closing picture.\n')
 
@@ -505,7 +525,7 @@ def circle_finder(image, sigma=0.25, min_r=0.25, max_r=0.35, n=0):
     circy, circx = circle_perimeter(center_y, center_x, radius) 
       
     #rescaling to 8bit for easy inspection
-    #This does not effect result, purely for eye double check
+    #This does not effect result, only for eye double check
     min_val = np.min(image)
     max_val = np.max(image)
     test    = image
@@ -519,7 +539,7 @@ def circle_finder(image, sigma=0.25, min_r=0.25, max_r=0.35, n=0):
  
     if (all(x <= 480 for x in circx) and all(y <= 640 for y in circy)):
         #Circle fits in original image
-        image2[circy, circx] = (220, 20, 20)
+        image2[circy, circx] = (255, 255, 0) #(220, 20, 20)
         ax.imshow(image2)
         plt.show()
     elif (any(x > 480 for x in circx) or any(y > 640 for y in circy)):
@@ -534,12 +554,13 @@ def circle_finder(image, sigma=0.25, min_r=0.25, max_r=0.35, n=0):
         print(padx, pady)
         pad_image = np.pad(image2,((pady+1, pady+1), (padx+1, padx+1), (0, 0)), mode='constant', constant_values=0)
         print('new image size', np.shape(pad_image))
-        pad_image[circy, circx] = (220, 20, 20)
+        pad_image[circy, circx] = (255, 255, 0) #(220, 20, 20)
         ax.imshow(pad_image)
         plt.show()
     else: 
             print('Somethings wrong, circle dimensions out of bounds.')
 
+    #Making dictionary with YAG circle dimensions
     circle_dimensions = {}
     circle_dimensions['radius']   = radius
     circle_dimensions['center_x'] = center_x
@@ -548,60 +569,41 @@ def circle_finder(image, sigma=0.25, min_r=0.25, max_r=0.35, n=0):
     return(circle_dimensions)
 
 
-
-
+#==============================================================================
+#old stuff
+#==============================================================================
 # mask = rotate>0
 # rotate = skimage.transform.rotate(edges, 0.0, resize=True)
 # crop = rotate[np.ix_(mask.any(1),mask.any(0))]
 # crop2 = image[np.ix_(mask.any(1),mask.any(0))]
 #==============================================================================
-#==============================================================================
 # #nonzeroCols = ~np.all(edges==False, axis=0)
 # #nonzeroRows = ~np.all(yag1==False, axis=1)
 # #nonzeroCols = (edges==False).all(axis=1)
-# 
 # topcols = ~np.all(edges[:,0:100]==False, axis=0)
 # botcols = ~np.all(edges[:,400:480]==False, axis=0)
-# 
 # cols = ~np.all(edges==False, axis=0)
 # #rows = ~np.all(edges==False, axis=1)
-#==============================================================================
-
 #==============================================================================
 # cut1 = edges[cols,:]
 # cut2 = cut1[:,rows]
 #==============================================================================
-#==============================================================================
 # cut1 = edges[:,rows]
 # cut2 = cut1[cols,:]
 #==============================================================================
-
 #yag = np.where(nonzeroCols)
-#crop = edges[yag]
-
 #hold = edges[yag]
 #crop = hold[:, (hold != 0).sum(axis=0) >= 1] 
-    #return(mask)
-
 #crop = edgeDetection(imArray)
-
 #==============================================================================
-# fig, ax = plt.subplots(ncols=1, nrows=1, figsize=(5, 2))
-#==============================================================================
-
 #plt.imshow(denoise_bilateral(image, multichannel=False))#, sigma_range=0.1, sigma_spatial=15))
-#plt.savefig('denoise.pdf')
-
 #==============================================================================
-# #==============================================================================
-# # mask   = (f1<52)+0.0                  
 # # image_result = inpaint.inpaint_biharmonic(f1, mask)#, multichannel=True)
 # # i = scipy.ndimage.map_coordinates(z, np.vstack((x,y)))
 # #Need to flip x and y values in this array
 # #x, y = np.mgrid[640:0:-1, 480:0:-1]
 # #plt.pcolor(x,y, f1, cmap='RdBu', vmin=np.min(f1), vmax=np.max(f1))
 # #plt.pcolormesh(x,y, f1, cmap='copper', norm=LogNorm(vmin=1, vmax=np.max(f1)))
-# 
 #==============================================================================
 
 #cmap colors:
@@ -626,24 +628,5 @@ def circle_finder(image, sigma=0.25, min_r=0.25, max_r=0.35, n=0):
     #ocean_r, pink, pink_r, plasma, plasma_r, prism, prism_r, rainbow, 
     #rainbow_r, seismic, seismic_r, spectral, spectral_r, spring, spring_r, 
     #summer, summer_r, terrain, terrain_r, viridis, viridis_r, winter, winter_r
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
