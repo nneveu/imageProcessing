@@ -57,7 +57,9 @@ def readimage(imagefile, header_size=6, order_type='F'):
     return(dx, dy, Nframes, images_array)  
 
 #-------------------------------------------------------------------------------
-def difilter(image_array, use_filter='median'):
+def do_filter(image_array, use_filter='median', n=3):
+    #http://www.scipy-lectures.org/advanced/image_processing/index.html
+
     plt.close('all')
     #Deinterlace and filter
     # Applies a median filter to all images 
@@ -80,11 +82,11 @@ def difilter(image_array, use_filter='median'):
         if use_filter == 'median':
             #Median averages across two pixels
             #Better for salt and pepper background
-            filtered_image = median_filter(image_array,2)
+            filtered_image = median_filter(image_array,n)
 
         else:
             #Guassian filter not good for salt and pepper background
-            filtered_image = gaussian_filter(image_array, 1) #order 1 looks best?
+            filtered_image = gaussian_filter(image_array, n) #order 1 looks best?
 
     return(filtered_image)  
 
@@ -101,7 +103,7 @@ def view_each_frame(image_array):
         Nframes = len(image_array[0,0,:])
         for i in range(0,Nframes):
             image = image_array[:,:,i]
-            di_image = difilter(image)
+            di_image = do_filter(image)
             plt.close('all')
             plt.figure(1) #closing figures from previous functions
             plt.imshow(di_image)
@@ -109,7 +111,7 @@ def view_each_frame(image_array):
 
     except:
         image = image_array
-        di_image = difilter(image)
+        di_image = do_filter(image)
         plt.close('all')
         plt.figure(1) #closing figures from previous functions
         plt.imshow(di_image)
@@ -252,7 +254,7 @@ def raw_data_curves(image, oneframe=1 ):
     return (fit_x, fit_y)
 
 #-------------------------------------------------------------------------------
-def fit_data(images, fiducial, filename):
+def fit_gaussian(images, fiducial, filename):
     #https://lmfit.github.io/lmfit-py/builtin_models.html
     #https://lmfit.github.io/lmfit-py/builtin_models.html#lmfit.models.GaussianModel
     #https://lmfit.github.io/lmfit-py/model.html#lmfit.model.ModelResult

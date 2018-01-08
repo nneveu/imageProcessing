@@ -62,24 +62,76 @@ charge_images = select_on_charge(image_array, charge_array, 0.95, 1.05)
 #  Assuming the beam size is not bigger than the YAG screen, 
 #  I mask a little more than the YAG sceen radius.
 #  I'm doing this because sometimes the YAG edges are bright 
-print('radius before adjustment', circle_dim['radius'])
+print('Radius before adjustment:', circle_dim['radius'])
 #  Masking 20% of the YAG screen edges
-adjusted_radius = int(circle_dim['radius']*0.8)
-print('radius after adjustment', adjusted_radius)
+circle_dim['radius'] = int(circle_dim['radius']*0.8)
+print('Radius after adjustment:', circle_dim['radius'])
 
 #  Load background images
-(bx, by,b_Nframes, background_array) = readimage(yag_back, header_size=3)
+(bx, by,b_Nframes, background_array) = readimage(background_file, header_size=3)
 
 #  Masking everything outside YAG screen
 masked_background    = mask_images(background_array, circle_dim)
 masked_charge_images = mask_images(charge_images, circle_dim)
 
-
-
-#(bx, by,b_Nframes, background_array) = readimage(background_file, header_size=3)
-
-
+#  Uncomment the following to look at the masked images
+#view_each_frame(masked_background)
+#view_each_frame(masked_charge_images)
 
 #-------------------------------------------------------------------------
+#STEP 4: Subtract background and filter xrays
+#This step could come before or after filtering image(?)
+#(My guess is subtraction should be first, or filter twice??)
+#Clean up noise with median filter
+
+#  Average background shots
+ave_background = average_images(masked_background)
+
+#  Subtract background
+no_background = background_subtraction(masked_charge_images, ave_background)
+#view_each_frame(no_background)
+
+#  Apply median filter to all frames
+#  There is also a guassian filter available
+#  n=3 averages 3x3 array with pixel in middle
+#  Currently edges are reflected as default
+filtered_images = do_filter(no_background, n=3)
+#view_each_frame(no_background)
 
 #-------------------------------------------------------------------------
+#STEP 5: Calculate beam sizes with guassian fit.
+#Note - you only need to give a base file name. Extensions will be added.
+#Optional - crop image and plot with distribution
+#(I crop the images to make it square, but this is not required)
+#(I hope to add an automatic crop soon)
+
+
+#  Optional - crop image
+#  Get shape of array 
+x, y, z = filtered_images.shape
+#  usage = np.zeros((dy, dx, dz))
+crop_array = np.zeros((350,350,z))
+for i in range(0,z):
+    crop_array[:,:,i] = crop_image(filtered_images[:,:,i], x_min=80, x_max=430, y_min=80, y_max=430)
+#view_each_frame(crop_array)
+
+#  Optional - average cropped images
+ave_crop = average_images(crop_array)
+
+#  Plot distributions on averaged image
+#  You can give a output file name and title
+#  The background is subtracted to produce a white background
+outfile = './yag_plus_dist'
+add_dist_to_image(ave_crop, fiducial, outfile,title="M=205", background=20)
+
+
+#  Calculate beam sizes
+beamsize_file = './beamsizes'
+beamsizes = fit_gaussian(crop_array, fiducial, beamsize_file)
+
+
+
+
+
+
+
