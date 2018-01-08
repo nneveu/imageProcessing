@@ -94,7 +94,7 @@ def view_each_frame(image_array):
     # If you want to stop looking at the images
     # before reaching the end of the file, 
     # use CTRL+C to stop the python file execution.
-    print(image_array.shape)
+    #print(image_array.shape)
 
     try:
         #x,y,z = image_array.shape
