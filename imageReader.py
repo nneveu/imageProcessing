@@ -256,7 +256,8 @@ def fit_data(images, fiducial, filename):
     #https://lmfit.github.io/lmfit-py/builtin_models.html
     #https://lmfit.github.io/lmfit-py/builtin_models.html#lmfit.models.GaussianModel
     #https://lmfit.github.io/lmfit-py/model.html#lmfit.model.ModelResult
- 
+    #https://lmfit.github.io/lmfit-py/builtin_models.html#lmfit.models.RectangleModel 
+    
     #Finding number and size of images
     dx, dy, n_images  = np.shape(images)
 
@@ -276,7 +277,7 @@ def fit_data(images, fiducial, filename):
     print('Calculating the fits and plotting the results...')
     with PdfPages(pdffile) as pdf:
 
-        for n in range(0,n_images):
+        for n in range(0,1):#n_images):
             #print(n)
             #getting raw data curves 
             raw_x, raw_y = raw_data_curves(images[:,:,n]) 
@@ -288,19 +289,21 @@ def fit_data(images, fiducial, filename):
             x_axis   = (np.arange(0,x_points) - x_points/2)*fiducial
             y_axis   = (np.arange(0,y_points) - y_points/2)*fiducial
            
-            #Calc sigmax 
-            parsx      = mod.guess(raw_x, x=x_axis)
-            outx       = mod.fit(raw_x, parsx, x=x_axis)
-            paramsx    = outx.best_values
-            sigmax[n]  = paramsx['sigma']
-            #print(parsx.keys()) # = odict_keys(['sigma', 'center', 'amplitude', 'fwhm', 'height'])
+            outx = type_model(raw_x, x_axis)
+            outy = type_model(raw_y, y_axis)
+            ##Calc sigmax 
+            #parsx      = mod.guess(raw_x, x=x_axis)
+            #outx       = mod.fit(raw_x, parsx, x=x_axis)
+            #paramsx    = outx.best_values
+            #sigmax[n]  = paramsx['sigma']
+            ##print(parsx.keys()) # = odict_keys(['sigma', 'center', 'amplitude', 'fwhm', 'height'])
 
-            #['chi-square']
-            #Calc sigmay
-            parsy = mod.guess(raw_y, x=y_axis)
-            outy  = mod.fit(raw_y, parsy, x=y_axis) 
-            paramsy = outy.best_values
-            sigmay[n]  = paramsy['sigma']
+            ##['chi-square']
+            ##Calc sigmay
+            #parsy = mod.guess(raw_y, x=y_axis)
+            #outy  = mod.fit(raw_y, parsy, x=y_axis) 
+            #paramsy = outy.best_values
+            #sigmay[n]  = paramsy['sigma']
             
            
             ##Plotting curves 
@@ -342,15 +345,33 @@ def fit_data(images, fiducial, filename):
     return (beamsizes)
 
 #-------------------------------------------------------------------------------
-def combo_model():
-    step_mod  = GaussianModel(prefix='gauss_')
-    gauss_mod = StepModel(prefix='step_')
+def type_model(raw_xy, axis_xy, fit_type='combo'):
+    plt.close('all')
+    gauss_mod   = GaussianModel(prefix='gauss_')
+    #stepup_mod  = StepModel(prefix='stepu_')
+    #stepdn_mod  = StepModel(prefix='stepd_')
     
-    pars =  line_mod.make_params(intercept=y.min(), slope=0)
-    pars += step_mod.guess(y, x=x, center=2.5)
+
+    #rect =  
+    su = step_mod.guess(raw_xy, x=axis_xy, center=-5.0)
+    g1 = gauss_mod.guess(raw_xy, x=axis_xy)
+    sd = step_mod.guess(raw_xy, x=axis_xy, center=5.0) 
     
-    mod = step_mod + line_mod
-    out = mod.fit(y, pars, x=x)
+    pars = su + g1 + sd
+    mod = stepup_mod + gauss_mod + stepdn_mod
+    out = mod.fit(raw_xy, pars, x=axis_xy)
+    #paramsx    = outx.best_values
+    #sigmax[n]  = paramsx['sigma']
+    #print(parsx.keys()) # = odict_keys(['sigma', 'center', 'amplitude', 'fwhm', 'height'])
+    
+    print(out.fit_report())
+
+    plt.plot(axis_xy, raw_xy, 'b.', markersize=2,  label='raw data')
+    plt.plot(axis_xy, out.init_fit, 'k--', label='inital guess')
+    plt.plot(axis_xy, out.best_fit, 'r-', label='best fit')
+    plt.show()
+
+    return(out)
 #-------------------------------------------------------------------------------
 def crop_image(image, x_min=0, x_max=480, y_min=0, y_max=640):
     #Must be one frame
@@ -497,12 +518,13 @@ def circle_finder(image, sigma=0.25, min_r=0.25, max_r=0.35, n=0):
     
     #Getting dimensions of image
     #Grabbing first image if multiple shots
+    #You can choose a alternate image by adjusting n
     try: 
         dx, dy, dz = image.shape
         image = image[:,:,n]
     except:
         dx, dy = image.shape
-    print('\nFinding circle in image with dimensions', image.shape)
+    print('\nFinding circle in image with dimensions:', image.shape)
     #plt.imshow(image)
     #plt.show()
 
@@ -522,7 +544,7 @@ def circle_finder(image, sigma=0.25, min_r=0.25, max_r=0.35, n=0):
     print('Checking this many radii possibilities: ', len(hough_radii))
     if len(hough_radii) > 40: 
         print('This number is larger than 40, adjust min_r and max_r to reduce posibilities')
-    print('Range of radius values '+str(np.max(hough_radii))+'-'+ str(np.min(hough_radii)))
+    print('Range of radius values is '+str(np.max(hough_radii))+'-'+ str(np.min(hough_radii))+' pixels')
     #Hough transform accumulator  
     hough_res = hough_circle(edges, hough_radii)    
     # Select the most prominent 3 circles

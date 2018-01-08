@@ -165,7 +165,13 @@ def dT_sdds(cal_array, n):
     #vposition = cal_array[2,n] #scopes attempt at offset, not needed?
     return(deltaT, vscale) 
 
-def ict_charge(volts_array, data_type='none', time_array=0, cal_array=0,ave_over=200, ict_cal=1.25):
+def ict_charge(ict_file, data_type='none', ave_over=200, ict_cal=1.25):
+    
+    if data_type=='csv':
+        volts_array, time_array = csv_to_volts_array(ict_file) 
+    elif data_type=='sdds':
+        volts_array, cal_array = sdds_to_volts_array(ict_file)
+
     steps   = len(volts_array[:,0]) 
     n_shots = len(volts_array[0,:]) 
     charge_array = np.zeros((1,n_shots)) 
@@ -195,7 +201,7 @@ def ict_charge(volts_array, data_type='none', time_array=0, cal_array=0,ave_over
             print('Data is very noisy, please look at voltage curve to verify charge for shot:', n, '\n')
 
     print('Min Charge =', np.max(charge_array),'Max Charge=',  np.min(charge_array))
-    print('Std is =', np.std(charge_array), 'Mean is=', np.mean(charge_array))
+    print('Std is ', np.std(charge_array), ', Mean is ', np.mean(charge_array))
     return(charge_array, scaled_volts)
     
  
