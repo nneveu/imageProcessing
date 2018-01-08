@@ -126,6 +126,7 @@ add_dist_to_image(ave_crop, fiducial, outfile,title="M=205", background=20)
 
 
 #  Calculate beam sizes
+#  The beam sizes (1 sigma) are saved in a .npy file
 beamsize_file = './beamsizes'
 beamsizes = fit_gaussian(crop_array, fiducial, beamsize_file)
 

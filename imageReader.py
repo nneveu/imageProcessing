@@ -259,7 +259,10 @@ def fit_gaussian(images, fiducial, filename):
     #https://lmfit.github.io/lmfit-py/builtin_models.html#lmfit.models.GaussianModel
     #https://lmfit.github.io/lmfit-py/model.html#lmfit.model.ModelResult
     #https://lmfit.github.io/lmfit-py/builtin_models.html#lmfit.models.RectangleModel 
-    
+   
+    #Plaxe holders
+    chix = 0
+    chiy = 0 
     #Finding number and size of images
     dx, dy, n_images  = np.shape(images)
 
@@ -279,7 +282,7 @@ def fit_gaussian(images, fiducial, filename):
     print('Calculating the fits and plotting the results...')
     with PdfPages(pdffile) as pdf:
 
-        for n in range(0,1):#n_images):
+        for n in range(0,n_images):
             #print(n)
             #getting raw data curves 
             raw_x, raw_y = raw_data_curves(images[:,:,n]) 
@@ -291,41 +294,44 @@ def fit_gaussian(images, fiducial, filename):
             x_axis   = (np.arange(0,x_points) - x_points/2)*fiducial
             y_axis   = (np.arange(0,y_points) - y_points/2)*fiducial
            
-            outx = type_model(raw_x, x_axis)
-            outy = type_model(raw_y, y_axis)
+            #outx = type_model(raw_x, x_axis)
+            #outy = type_model(raw_y, y_axis)
             ##Calc sigmax 
-            #parsx      = mod.guess(raw_x, x=x_axis)
-            #outx       = mod.fit(raw_x, parsx, x=x_axis)
-            #paramsx    = outx.best_values
-            #sigmax[n]  = paramsx['sigma']
-            ##print(parsx.keys()) # = odict_keys(['sigma', 'center', 'amplitude', 'fwhm', 'height'])
+            parsx      = mod.guess(raw_x, x=x_axis)
+            outx       = mod.fit(raw_x, parsx, x=x_axis)
+            paramsx    = outx.best_values
+            sigmax[n]  = paramsx['sigma']
+            #print(parsx.keys()) # = odict_keys(['sigma', 'center', 'amplitude', 'fwhm', 'height'])
 
             ##['chi-square']
             ##Calc sigmay
-            #parsy = mod.guess(raw_y, x=y_axis)
-            #outy  = mod.fit(raw_y, parsy, x=y_axis) 
-            #paramsy = outy.best_values
-            #sigmay[n]  = paramsy['sigma']
+            parsy = mod.guess(raw_y, x=y_axis)
+            outy  = mod.fit(raw_y, parsy, x=y_axis) 
+            paramsy = outy.best_values
+            sigmay[n]  = paramsy['sigma']
             
+            #Summing chisqr for average later
+            chix = chix + outx.chisqr
+            chiy = chiy + outy.chisqr
            
             ##Plotting curves 
-            #plt.title('Raw data and Gaussian Fit')
-            #plt.xlabel('[mm]', size=14)
-            #plt.ylabel('Pixel Intensity [arb. units]', size=14)
-            #plt.plot(x_axis, raw_x, 'b.', label='x-axis')
-            #plt.plot(y_axis, raw_y, 'k.', label='y-axis')
-            #plt.plot(y_axis, outy.best_fit, 'k--')
-            #plt.plot(x_axis, outx.best_fit, 'b-')
-            #plt.legend(loc='best')
-            #pdf.savefig(bbox_inches='tight')
-            #plt.close()
+            plt.title('Raw data and Gaussian Fit')
+            plt.xlabel('[mm]', size=14)
+            plt.ylabel('Pixel Intensity [arb. units]', size=14)
+            plt.plot(x_axis, raw_x, 'b.', label='x-axis', markersize=1)
+            plt.plot(y_axis, raw_y, 'k.', label='y-axis', markersize=1)
+            plt.plot(y_axis, outy.best_fit, 'k--')
+            plt.plot(x_axis, outx.best_fit, 'b-')
+            plt.legend(loc='best')
+            pdf.savefig(bbox_inches='tight')
+            plt.close()
     plt.close('all')
     
-    print('\nX chi-sq:')
-    print(outx.chisqr)
+    print('\nAverage X chi-sq:')
+    print(outx.chisqr/n_images)
     #print(outx.fit_report())
-    print('\nY chi-sq:')
-    print(outy.chisqr)
+    print('\nAverage Y chi-sq:')
+    print(outy.chisqr/n_images)
            
     #print('sigmax', sigmax)
     #print('sigmay', sigmay)
