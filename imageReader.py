@@ -255,13 +255,13 @@ def raw_data_curves(image, oneframe=1 ):
     return (fit_x, fit_y)
 
 #-------------------------------------------------------------------------------
-def fit_gaussian(images, fiducial, output_filename):
+def fit_gaussian(images, fiducial, output_filename, clip_tail=50):
     #https://lmfit.github.io/lmfit-py/builtin_models.html
     #https://lmfit.github.io/lmfit-py/builtin_models.html#lmfit.models.GaussianModel
     #https://lmfit.github.io/lmfit-py/model.html#lmfit.model.ModelResult
     #https://lmfit.github.io/lmfit-py/builtin_models.html#lmfit.models.RectangleModel 
-   
-    #Plaxe holders
+    
+    #Place holders
     chix = 0
     chiy = 0 
     #Finding number and size of images
@@ -287,10 +287,13 @@ def fit_gaussian(images, fiducial, output_filename):
             #print(n)
             #getting raw data curves 
             raw_x, raw_y = raw_data_curves(images[:,:,n]) 
-            x_points = len(raw_x) #x_max = x_points*fiducial
-            y_points = len(raw_y) #y_max = y_points*fiducial
-            norm_x   = raw_x/np.max(raw_x)
-            norm_y   = raw_y/np.max(raw_y)
+            no_tailx = raw_x[clip_tail:-clip_tail]
+            no_taily = raw_y[clip_tail:-clip_tail]
+
+            x_points = len(no_tailx) #x_max = x_points*fiducial
+            y_points = len(no_taily) #y_max = y_points*fiducial
+            norm_x   = no_tailx/np.max(no_tailx)
+            norm_y   = no_taily/np.max(no_taily)
  
             #Calculating x and y axis in mm, using fiducial (mm/pixel)    
             #The center of the axis is zero, this is an arbitrary choice
