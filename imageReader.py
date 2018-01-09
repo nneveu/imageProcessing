@@ -15,6 +15,7 @@ Stack Overflow
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.ndimage import gaussian_filter, median_filter
+from scipy.interpolate import UnivariateSpline
 from skimage.measure import compare_ssim as ssim
 from skimage.transform import hough_circle, hough_circle_peaks
 from skimage.feature import canny
@@ -34,7 +35,7 @@ def readimage(imagefile, header_size=6, order_type='F'):
     
     # count=-1 -> reads all data
     # sep='' -> read file as binary
-    # header_size=5 for old data aquisition (at AWA)  
+    # header_size=6 for old data aquisition (at AWA)  
     # header_size=3 for new python data aquisition (at AWA)
  
     # header info vert/horiz pixels and number of frames
@@ -118,7 +119,7 @@ def view_each_frame(image_array):
         plt.show()
 #-------------------------------------------------------------------------------
 def average_images(image_array):
-    #This function takes all images in 
+    # This function takes all images in 
     # image array and averages them to 
     # create one image
     # https://stackoverflow.com/questions/17291455/how-to-get-an-average-picture-from-100-pictures-using-pil
@@ -254,7 +255,7 @@ def raw_data_curves(image, oneframe=1 ):
     return (fit_x, fit_y)
 
 #-------------------------------------------------------------------------------
-def fit_gaussian(images, fiducial, filename):
+def fit_gaussian(images, fiducial, output_filename):
     #https://lmfit.github.io/lmfit-py/builtin_models.html
     #https://lmfit.github.io/lmfit-py/builtin_models.html#lmfit.models.GaussianModel
     #https://lmfit.github.io/lmfit-py/model.html#lmfit.model.ModelResult
@@ -278,7 +279,7 @@ def fit_gaussian(images, fiducial, filename):
     #mod  = VoigtModel()
  
     plt.close('all') #closing figures from previous functions
-    pdffile =  filename +'_fit_curves.pdf'
+    pdffile =  output_filename +'_fit_curves.pdf'
     print('Calculating the fits and plotting the results...')
     with PdfPages(pdffile) as pdf:
 
@@ -288,7 +289,9 @@ def fit_gaussian(images, fiducial, filename):
             raw_x, raw_y = raw_data_curves(images[:,:,n]) 
             x_points = len(raw_x) #x_max = x_points*fiducial
             y_points = len(raw_y) #y_max = y_points*fiducial
-        
+            norm_x   = raw_x/np.max(raw_x)
+            norm_y   = raw_y/np.max(raw_y)
+ 
             #Calculating x and y axis in mm, using fiducial (mm/pixel)    
             #The center of the axis is zero, this is an arbitrary choice
             x_axis   = (np.arange(0,x_points) - x_points/2)*fiducial
@@ -297,16 +300,18 @@ def fit_gaussian(images, fiducial, filename):
             #outx = type_model(raw_x, x_axis)
             #outy = type_model(raw_y, y_axis)
             ##Calc sigmax 
-            parsx      = mod.guess(raw_x, x=x_axis)
-            outx       = mod.fit(raw_x, parsx, x=x_axis)
+            #parsx      = mod.guess(raw_x, x=x_axis)
+            parsx      = mod.guess(norm_x, x=x_axis)
+            #outx       = mod.fit(raw_x, parsx, x=x_axis)
+            outx       = mod.fit(norm_x, parsx, x=x_axis)
             paramsx    = outx.best_values
             sigmax[n]  = paramsx['sigma']
             #print(parsx.keys()) # = odict_keys(['sigma', 'center', 'amplitude', 'fwhm', 'height'])
 
             ##['chi-square']
             ##Calc sigmay
-            parsy = mod.guess(raw_y, x=y_axis)
-            outy  = mod.fit(raw_y, parsy, x=y_axis) 
+            parsy = mod.guess(norm_y, x=y_axis)
+            outy  = mod.fit(norm_y, parsy, x=y_axis) 
             paramsy = outy.best_values
             sigmay[n]  = paramsy['sigma']
             
@@ -318,8 +323,8 @@ def fit_gaussian(images, fiducial, filename):
             plt.title('Raw data and Gaussian Fit')
             plt.xlabel('[mm]', size=14)
             plt.ylabel('Pixel Intensity [arb. units]', size=14)
-            plt.plot(x_axis, raw_x, 'b.', label='x-axis', markersize=1)
-            plt.plot(y_axis, raw_y, 'k.', label='y-axis', markersize=1)
+            plt.plot(x_axis, norm_x, 'b.', label='x-axis', markersize=1)
+            plt.plot(y_axis, norm_y, 'k.', label='y-axis', markersize=1)
             plt.plot(y_axis, outy.best_fit, 'k--')
             plt.plot(x_axis, outx.best_fit, 'b-')
             plt.legend(loc='best')
@@ -337,7 +342,7 @@ def fit_gaussian(images, fiducial, filename):
     #print('sigmay', sigmay)
     beamsizes['sigmax'] = sigmax 
     beamsizes['sigmay'] = sigmay 
-    np.save(filename+'.npy', beamsizes)
+    np.save(output_filename+'.npy', beamsizes)
 
     #pars = mod.guess(raw_x, x=x_axis)
     #out  = mod.fit(raw_x, pars, x=x_axis)
@@ -351,7 +356,34 @@ def fit_gaussian(images, fiducial, filename):
     #plt.plot(x_axis, raw_x)
     #plt.plot(x_axis, y_new)
     return (beamsizes)
+#-------------------------------------------------------------------------------
+def fwhm_calc(images, fiducial, outfile_base):
+    #This function calcs fwhm of the data points
+    #Getting shape of image
+    
+    try:
+        dx, dy, n_images = images.shape
+    except:
+        n_images = 1
+        dx, dy = images.shape
 
+    #Array for holding fwhm values
+    fwhm = np.zeros((n_images))
+    #Calculating x and y axis in mm, using fiducial (mm/pixel)    
+    #The center of the axis is zero, this is an arbitrary choice
+    xaxis   = (np.arange(0,dx) - dx/2)*fiducial
+    yaxis   = (np.arange(0,dy) - dy/2)*fiducial
+
+    for i in range(0,dz):
+        image = images[:,:,i]
+        #Calc projection and normalize
+        fitx, fity = raw_data_curves(image)
+        fitxnorm = (fitx - np.min(fitx))/(np.max(fitx)-np.min(fitx))#*15 -20  
+        fitynorm = (fity - np.min(fity))/(np.max(fity)-np.min(fity))#*15 -20 
+        
+        fwhm[i] = 0
+
+    return(fwhm) 
 #-------------------------------------------------------------------------------
 def type_model(raw_xy, axis_xy, fit_type='combo'):
     plt.close('all')
@@ -635,16 +667,6 @@ def circle_finder(image, sigma=0.25, min_r=0.25, max_r=0.35, n=0):
 # cols = ~np.all(edges==False, axis=0)
 # #rows = ~np.all(edges==False, axis=1)
 #==============================================================================
-# cut1 = edges[cols,:]
-# cut2 = cut1[:,rows]
-#==============================================================================
-# cut1 = edges[:,rows]
-# cut2 = cut1[cols,:]
-#==============================================================================
-#yag = np.where(nonzeroCols)
-#hold = edges[yag]
-#crop = hold[:, (hold != 0).sum(axis=0) >= 1] 
-#crop = edgeDetection(imArray)
 #==============================================================================
 #plt.imshow(denoise_bilateral(image, multichannel=False))#, sigma_range=0.1, sigma_spatial=15))
 #==============================================================================
