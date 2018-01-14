@@ -4,10 +4,9 @@
 #sys.path.append("/path/to/imageProcessing") 
 
 from imageReader import *  
-from chargeReader2 import *
+from chargeReader import *
 import numpy as np 
 import matplotlib.pyplot as plt 
-from glob import glob 
 
 fiducial_file    = './YAG1_fiducial_11-02-2017_img.dat'
 beam_images_file = './YAG1_M205_11-02-2017_img.dat'
@@ -128,10 +127,10 @@ add_dist_to_image(ave_crop, fiducial, outfile,title="M=205", background=20)
 #  Calculate beam sizes
 #  The beam sizes (1 sigma) are saved in a .npy file
 beamsize_file = './beamsizes'
-beamsizes = fit_gaussian(crop_array, fiducial, beamsize_file)
+beamsizes = fit_gaussian(crop_array, fiducial, beamsize_file, clip_tail=80)
+#print(beamsizes)
 
-
-
+#combo_model(crop_array, fiducial)
 
 
 

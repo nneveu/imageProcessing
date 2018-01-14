@@ -14,6 +14,8 @@ Stack Overflow
 
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.backends.backend_pdf import PdfPages
+from sklearn.metrics import r2_score
 from scipy.ndimage import gaussian_filter, median_filter
 from scipy.interpolate import UnivariateSpline
 from skimage.measure import compare_ssim as ssim
@@ -22,10 +24,10 @@ from skimage.feature import canny
 from skimage.draw import circle_perimeter
 from skimage import color
 from lmfit import  Model
-from lmfit.models import StepModel, GaussianModel, LorentzianModel, VoigtModel
+from lmfit.models import ConstantModel, StepModel, GaussianModel, LorentzianModel, VoigtModel
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from random import *
-from matplotlib.backends.backend_pdf import PdfPages
+
 
 def readimage(imagefile, header_size=6, order_type='F'):
     #This function reads in image data
@@ -286,26 +288,31 @@ def fit_gaussian(images, fiducial, output_filename, clip_tail=50):
         for n in range(0,n_images):
             #print(n)
             #getting raw data curves 
-            raw_x, raw_y = raw_data_curves(images[:,:,n]) 
-            no_tailx = raw_x[clip_tail:-clip_tail]
-            no_taily = raw_y[clip_tail:-clip_tail]
+            xprojection, yprojection = raw_data_curves(images[:,:,n])
+            if clip_tail == 0: 
+                no_tailx = xprojection
+                no_taily = yprojection
+            else:
+                no_tailx = xprojection[clip_tail:-clip_tail]
+                no_taily = yprojection[clip_tail:-clip_tail]
 
-            x_points = len(no_tailx) #x_max = x_points*fiducial
-            y_points = len(no_taily) #y_max = y_points*fiducial
+            #Normalized projection
             norm_x   = no_tailx/np.max(no_tailx)
             norm_y   = no_taily/np.max(no_taily)
  
+            x_points = len(no_tailx) #x_max = x_points*fiducial
+            y_points = len(no_taily) #y_max = y_points*fiducial
             #Calculating x and y axis in mm, using fiducial (mm/pixel)    
             #The center of the axis is zero, this is an arbitrary choice
             x_axis   = (np.arange(0,x_points) - x_points/2)*fiducial
             y_axis   = (np.arange(0,y_points) - y_points/2)*fiducial
            
-            #outx = type_model(raw_x, x_axis)
-            #outy = type_model(raw_y, y_axis)
+            #outx = type_model(xprojection, x_axis)
+            #outy = type_model(yprojection, y_axis)
             ##Calc sigmax 
-            #parsx      = mod.guess(raw_x, x=x_axis)
+            #parsx      = mod.guess(no_tailx, x=x_axis)
+            #outx       = mod.fit(no_tailx, parsx, x=x_axis)
             parsx      = mod.guess(norm_x, x=x_axis)
-            #outx       = mod.fit(raw_x, parsx, x=x_axis)
             outx       = mod.fit(norm_x, parsx, x=x_axis)
             paramsx    = outx.best_values
             sigmax[n]  = paramsx['sigma']
@@ -313,6 +320,8 @@ def fit_gaussian(images, fiducial, output_filename, clip_tail=50):
 
             ##['chi-square']
             ##Calc sigmay
+            #parsy = mod.guess(no_taily, x=y_axis)
+            #outy  = mod.fit(no_taily, parsy, x=y_axis) 
             parsy = mod.guess(norm_y, x=y_axis)
             outy  = mod.fit(norm_y, parsy, x=y_axis) 
             paramsy = outy.best_values
@@ -321,13 +330,25 @@ def fit_gaussian(images, fiducial, output_filename, clip_tail=50):
             #Summing chisqr for average later
             chix = chix + outx.chisqr
             chiy = chiy + outy.chisqr
-           
+            #print('\nX chi-sq:')
+            #print(outx.chisqr/n_images)
+            ##print(outx.fit_report())
+            #print('\nY chi-sq:')
+            #print(outy.chisqr/n_images)
+          
+
+            #calc r^2
+            coefficient_of_dermination = r2_score(no_tailx, outx.best_fit)
+            print('r^2= ',coefficient_of_dermination)
+ 
             ##Plotting curves 
             plt.title('Raw data and Gaussian Fit')
             plt.xlabel('[mm]', size=14)
             plt.ylabel('Pixel Intensity [arb. units]', size=14)
-            plt.plot(x_axis, norm_x, 'b.', label='x-axis', markersize=1)
-            plt.plot(y_axis, norm_y, 'k.', label='y-axis', markersize=1)
+            #plt.plot(x_axis, norm_x, 'b.', label='x-axis', markersize=1)
+            #plt.plot(y_axis, norm_y, 'k.', label='y-axis', markersize=1)
+            plt.plot(x_axis, no_tailx, 'b.', label='x-axis', markersize=1)
+            plt.plot(y_axis, no_taily, 'k.', label='y-axis', markersize=1)
             plt.plot(y_axis, outy.best_fit, 'k--')
             plt.plot(x_axis, outx.best_fit, 'b-')
             plt.legend(loc='best')
@@ -340,23 +361,24 @@ def fit_gaussian(images, fiducial, output_filename, clip_tail=50):
     #print(outx.fit_report())
     print('\nAverage Y chi-sq:')
     print(outy.chisqr/n_images)
-           
+    print(np.max(xprojection))
+    print(np.max(yprojection)) 
     #print('sigmax', sigmax)
     #print('sigmay', sigmay)
     beamsizes['sigmax'] = sigmax 
     beamsizes['sigmay'] = sigmay 
     np.save(output_filename+'.npy', beamsizes)
 
-    #pars = mod.guess(raw_x, x=x_axis)
-    #out  = mod.fit(raw_x, pars, x=x_axis)
+    #pars = mod.guess(xprojection, x=x_axis)
+    #out  = mod.fit(xprojection, pars, x=x_axis)
     #params = out.best_values
     #sigma  = params['sigma']
         
-    #z = np.polyfit(x_axis, raw_x, 30)
+    #z = np.polyfit(x_axis, xprojection, 30)
     #f = np.poly1d(z)
     #y_new = f(x_axis)
-    #popt, pcov = curve_fit(raw_x, x_axis, ydata)
-    #plt.plot(x_axis, raw_x)
+    #popt, pcov = curve_fit(xprojection, x_axis, ydata)
+    #plt.plot(x_axis, xprojection)
     #plt.plot(x_axis, y_new)
     return (beamsizes)
 #-------------------------------------------------------------------------------
@@ -380,41 +402,60 @@ def fwhm_calc(images, fiducial, outfile_base):
     for i in range(0,dz):
         image = images[:,:,i]
         #Calc projection and normalize
-        fitx, fity = raw_data_curves(image)
-        fitxnorm = (fitx - np.min(fitx))/(np.max(fitx)-np.min(fitx))#*15 -20  
-        fitynorm = (fity - np.min(fity))/(np.max(fity)-np.min(fity))#*15 -20 
+        xprojection, yprojection = raw_data_curves(image)
+        xprojnorm = (xprojection - np.min(xprojection))/(np.max(xprojection)-np.min(xprojection))#*15 -20  
+        yprojnorm = (yprojection - np.min(yprojection))/(np.max(yprojection)-np.min(yprojection))#*15 -20 
         
         fwhm[i] = 0
 
     return(fwhm) 
 #-------------------------------------------------------------------------------
-def type_model(raw_xy, axis_xy, fit_type='combo'):
+def combo_model(images, fiducial, dim='x', fit_type='combo'):
     plt.close('all')
-    gauss_mod   = GaussianModel(prefix='gauss_')
-    #stepup_mod  = StepModel(prefix='stepu_')
-    #stepdn_mod  = StepModel(prefix='stepd_')
-    
+    #Finding number and size of images
+    dx, dy, n_images  = np.shape(images)
 
-    #rect =  
-    su = step_mod.guess(raw_xy, x=axis_xy, center=-5.0)
-    g1 = gauss_mod.guess(raw_xy, x=axis_xy)
-    sd = step_mod.guess(raw_xy, x=axis_xy, center=5.0) 
+    for i in range(0,1):#n_images):
+        image = images[:,:,i]
+        xprojection, yprojection = raw_data_curves(image)
+        xaxis   = (np.arange(0,dx) - dx/2)*fiducial
+        yaxis   = (np.arange(0,dy) - dy/2)*fiducial
     
-    pars = su + g1 + sd
-    mod = stepup_mod + gauss_mod + stepdn_mod
-    out = mod.fit(raw_xy, pars, x=axis_xy)
-    #paramsx    = outx.best_values
-    #sigmax[n]  = paramsx['sigma']
-    #print(parsx.keys()) # = odict_keys(['sigma', 'center', 'amplitude', 'fwhm', 'height'])
-    
-    print(out.fit_report())
+        gauss_mod = GaussianModel(prefix='gauss_')
+        const_mod = ConstantModel(prefix='const_')
+        #stepup_mod  = StepModel(prefix='stepu_')
+        #stepdn_mod  = StepModel(prefix='stepd_')
+        mod = const_mod + gauss_mod 
+       
+        cx = const_mod.guess(xprojection) #c=np.min(xprojection))
+        gx = gauss_mod.guess(xprojection, x=xaxis)
+        parsx = cx + gx 
+        outx = mod.fit(xprojection, parsx, x=xaxis)
+        
+        cy = const_mod.guess(yprojection) #c=np.min(xprojection))
+        gy = gauss_mod.guess(yprojection, x=yaxis)
+        parsy = cy + gy 
+        outy = mod.fit(yprojection, parsy, x=yaxis)
 
-    plt.plot(axis_xy, raw_xy, 'b.', markersize=2,  label='raw data')
-    plt.plot(axis_xy, out.init_fit, 'k--', label='inital guess')
-    plt.plot(axis_xy, out.best_fit, 'r-', label='best fit')
-    plt.show()
+        #paramsx    = outx.best_values
+        #sigmax[n]  = paramsx['sigma']
+        #print(parsx.keys()) # = odict_keys(['sigma', 'center', 'amplitude', 'fwhm', 'height'])
+        
+        print(outx.fit_report())
+        print(outy.fit_report())
 
-    return(out)
+        plt.plot(xaxis, xprojection, 'b.', markersize=1,  label='raw x data')
+        #plt.plot(xaxis, outx.init_fit, 'k--', label='inital guess')
+        plt.plot(xaxis, outx.best_fit, 'b-', label='best fit')
+        
+        plt.plot(yaxis, yprojection, 'k.', markersize=1,  label='raw y data')
+        #plt.plot(xaxis, outy.init_fit, 'k--', label='inital guess')
+        plt.plot(yaxis, outy.best_fit, 'k-', label='best fit')
+        plt.legend(loc='best')
+        plt.savefig('combo_model.pdf', dpi=1000, bbox_inches='tight')
+
+
+    return(outx, outy)
 #-------------------------------------------------------------------------------
 def crop_image(image, x_min=0, x_max=480, y_min=0, y_max=640):
     #Must be one frame
@@ -445,9 +486,9 @@ def add_dist_to_image(crop, fiducial, filename, title='no title set', background
    yaxis   = (np.arange(0,dy) - dy/2)*fiducial
 
    #Calc projection and normalize
-   fitx, fity = raw_data_curves(crop, oneframe=1)
-   fitxnorm = (fitx - np.min(fitx))/(np.max(fitx)-np.min(fitx))#*15 -20  
-   fitynorm = (fity - np.min(fity))/(np.max(fity)-np.min(fity))#*15 -20 
+   xprojection, yprojection = raw_data_curves(crop, oneframe=1)
+   xprojnorm = (xprojection - np.min(xprojection))/(np.max(xprojection)-np.min(xprojection))#*15 -20  
+   yprojnorm = (yprojection - np.min(yprojection))/(np.max(yprojection)-np.min(yprojection))#*15 -20 
  
    #Figure formatting and plotting
    fig, ax = plt.subplots(figsize=(10.5, 10.5))
@@ -458,14 +499,14 @@ def add_dist_to_image(crop, fiducial, filename, title='no title set', background
    # make some labels invisible
    axHistx.xaxis.set_tick_params(labelbottom=False)
    axHisty.yaxis.set_tick_params(labelleft=False)
-   axHisty.plot(fitxnorm, -xaxis, linewidth=3)
-   axHistx.plot(yaxis, fitynorm, linewidth=3)#, orientation='horizontal') 
+   axHisty.plot(xprojnorm, -xaxis, linewidth=3)
+   axHistx.plot(yaxis, yprojnorm, linewidth=3)#, orientation='horizontal') 
  
    cmap = plt.cm.viridis 
    cmap.set_under(color='white')    
    color = ax.imshow(crop, interpolation='none', cmap=cmap, vmin=background, extent=[np.min(xaxis), np.max(xaxis), np.min(yaxis), np.max(yaxis)])
-   #ax.plot(xaxis, fitxnorm, '--', linewidth=5, color='firebrick')
-   #ax.plot(yaxis, fitynorm, '--', linewidth=5, color='firebrick') 
+   #ax.plot(xaxis, xprojnorm, '--', linewidth=5, color='firebrick')
+   #ax.plot(yaxis, yprojnorm, '--', linewidth=5, color='firebrick') 
    ax.tick_params(labelsize=12)
    axHistx.set_title(title, size=20)
    ax.set_xlabel('X [mm]', size=18)
