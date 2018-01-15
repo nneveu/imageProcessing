@@ -236,28 +236,29 @@ def select_on_charge(images, charge, min_charge, max_charge):
 def raw_data_curves(image, oneframe=1 ):
     # At the moment, this function is only finding raw 
     # data curve for one image frame. 
+    # proj = projection in x or y direction
     if oneframe == 1:
        f1 = image
     
     dx, dy = np.shape(image)
     #print('raw data', dx, dy)
     #X fit, one for one sum across lines
-    fit_x = np.zeros([dx])
+    proj_x = np.zeros([dx])
     for i in range(0,dx):     
         line = f1[i,:]
-        fit_x[i] = np.sum(line)
+        proj_x[i] = np.sum(line)
     
     #Finding y fit
-    fit_y = np.zeros([dy])
+    proj_y = np.zeros([dy])
     for i in range(0,dy): 
 
         line = f1[:,i]
-        fit_y[i] = np.sum(line)
+        proj_y[i] = np.sum(line)
          
-    return (fit_x, fit_y)
+    return (proj_x, proj_y)
 
 #-------------------------------------------------------------------------------
-def fit_gaussian(images, fiducial, output_filename, clip_tail=50):
+def fit_gaussian(images, fiducial, output_filename, clip_tail=50, print_r2='no'):
     #https://lmfit.github.io/lmfit-py/builtin_models.html
     #https://lmfit.github.io/lmfit-py/builtin_models.html#lmfit.models.GaussianModel
     #https://lmfit.github.io/lmfit-py/model.html#lmfit.model.ModelResult
@@ -276,6 +277,8 @@ def fit_gaussian(images, fiducial, output_filename, clip_tail=50):
     print('Using fiducial of:', fiducial, '[mm/pixel]')
     #print(np.shape(images))
     beamsizes = {}
+
+    #choosing Gaussian fit
     mod   = GaussianModel()
     #mod  = LorentzianModel()
     #mod  = VoigtModel()
@@ -286,7 +289,6 @@ def fit_gaussian(images, fiducial, output_filename, clip_tail=50):
     with PdfPages(pdffile) as pdf:
 
         for n in range(0,n_images):
-            #print(n)
             #getting raw data curves 
             xprojection, yprojection = raw_data_curves(images[:,:,n])
             if clip_tail == 0: 
@@ -297,11 +299,12 @@ def fit_gaussian(images, fiducial, output_filename, clip_tail=50):
                 no_taily = yprojection[clip_tail:-clip_tail]
 
             #Normalized projection
-            norm_x   = no_tailx/np.max(no_tailx)
-            norm_y   = no_taily/np.max(no_taily)
+            #norm_x   = no_tailx/np.max(no_tailx)
+            #norm_y   = no_taily/np.max(no_taily)
  
             x_points = len(no_tailx) #x_max = x_points*fiducial
             y_points = len(no_taily) #y_max = y_points*fiducial
+            
             #Calculating x and y axis in mm, using fiducial (mm/pixel)    
             #The center of the axis is zero, this is an arbitrary choice
             x_axis   = (np.arange(0,x_points) - x_points/2)*fiducial
@@ -310,20 +313,20 @@ def fit_gaussian(images, fiducial, output_filename, clip_tail=50):
             #outx = type_model(xprojection, x_axis)
             #outy = type_model(yprojection, y_axis)
             ##Calc sigmax 
-            #parsx      = mod.guess(no_tailx, x=x_axis)
-            #outx       = mod.fit(no_tailx, parsx, x=x_axis)
-            parsx      = mod.guess(norm_x, x=x_axis)
-            outx       = mod.fit(norm_x, parsx, x=x_axis)
+            parsx      = mod.guess(no_tailx, x=x_axis)
+            outx       = mod.fit(no_tailx, parsx, x=x_axis)
+            #parsx      = mod.guess(norm_x, x=x_axis)
+            #outx       = mod.fit(norm_x, parsx, x=x_axis)
             paramsx    = outx.best_values
             sigmax[n]  = paramsx['sigma']
             #print(parsx.keys()) # = odict_keys(['sigma', 'center', 'amplitude', 'fwhm', 'height'])
 
             ##['chi-square']
             ##Calc sigmay
-            #parsy = mod.guess(no_taily, x=y_axis)
-            #outy  = mod.fit(no_taily, parsy, x=y_axis) 
-            parsy = mod.guess(norm_y, x=y_axis)
-            outy  = mod.fit(norm_y, parsy, x=y_axis) 
+            parsy = mod.guess(no_taily, x=y_axis)
+            outy  = mod.fit(no_taily, parsy, x=y_axis) 
+            #parsy = mod.guess(norm_y, x=y_axis)
+            #outy  = mod.fit(norm_y, parsy, x=y_axis) 
             paramsy = outy.best_values
             sigmay[n]  = paramsy['sigma']
             
@@ -338,9 +341,14 @@ def fit_gaussian(images, fiducial, output_filename, clip_tail=50):
           
 
             #calc r^2
-            coefficient_of_dermination = r2_score(no_tailx, outx.best_fit)
-            print('r^2= ',coefficient_of_dermination)
- 
+            if print_r2=='yes':
+                #Calc r^2
+                coefficient_of_dermination_x = r2_score(no_tailx, outx.best_fit)
+                print('rx^2= ',coefficient_of_dermination_x)
+                
+                coefficient_of_dermination_y = r2_score(no_taily, outy.best_fit)
+                print('ry^2= ',coefficient_of_dermination_y)
+  
             ##Plotting curves 
             plt.title('Raw data and Gaussian Fit')
             plt.xlabel('[mm]', size=14)
@@ -361,19 +369,12 @@ def fit_gaussian(images, fiducial, output_filename, clip_tail=50):
     #print(outx.fit_report())
     print('\nAverage Y chi-sq:')
     print(outy.chisqr/n_images)
-    print(np.max(xprojection))
-    print(np.max(yprojection)) 
     #print('sigmax', sigmax)
     #print('sigmay', sigmay)
     beamsizes['sigmax'] = sigmax 
     beamsizes['sigmay'] = sigmay 
     np.save(output_filename+'.npy', beamsizes)
 
-    #pars = mod.guess(xprojection, x=x_axis)
-    #out  = mod.fit(xprojection, pars, x=x_axis)
-    #params = out.best_values
-    #sigma  = params['sigma']
-        
     #z = np.polyfit(x_axis, xprojection, 30)
     #f = np.poly1d(z)
     #y_new = f(x_axis)
@@ -381,6 +382,82 @@ def fit_gaussian(images, fiducial, output_filename, clip_tail=50):
     #plt.plot(x_axis, xprojection)
     #plt.plot(x_axis, y_new)
     return (beamsizes)
+#-------------------------------------------------------------------------------
+def combo_model(images, fiducial, outfile, fit_type='combo'):
+    plt.close('all')
+    #Finding number and size of images
+    dx, dy, n_images  = np.shape(images)
+
+    #Creating empty arrays to hold sigma 
+    #value for each image
+    sigmax    = np.zeros((n_images))
+    sigmay    = np.zeros((n_images))
+    print('Using fiducial of:', fiducial, '[mm/pixel]')
+    #print(np.shape(images))
+    beamsizes = {}
+
+    print('Calculating the fits and plotting the results...')
+    pdffile =  'combo_model_fit_curves.pdf'
+    with PdfPages(outfile) as pdf:
+        for i in range(0,n_images):
+            image = images[:,:,i]
+            xprojection, yprojection = raw_data_curves(image)
+            xaxis   = (np.arange(0,dx) - dx/2)*fiducial
+            yaxis   = (np.arange(0,dy) - dy/2)*fiducial
+        
+            gauss_mod = GaussianModel(prefix='gauss_')
+            const_mod = ConstantModel(prefix='const_')
+            #stepup_mod  = StepModel(prefix='stepu_')
+            #stepdn_mod  = StepModel(prefix='stepd_')
+            mod = const_mod + gauss_mod 
+           
+            cx = const_mod.guess(xprojection) #c=np.min(xprojection))
+            gx = gauss_mod.guess(xprojection, x=xaxis)
+            parsx = cx + gx 
+            outx = mod.fit(xprojection, parsx, x=xaxis)
+            paramsx    = outx.best_values
+            #print(paramsx.keys())
+            sigmax[i]  = paramsx['gauss_sigma']
+           
+            cy = const_mod.guess(yprojection) #c=np.min(xprojection))
+            gy = gauss_mod.guess(yprojection, x=yaxis)
+            parsy = cy + gy 
+            outy = mod.fit(yprojection, parsy, x=yaxis)
+            paramsy    = outx.best_values
+            sigmay[i]  = paramsy['gauss_sigma']
+    
+            #Calc r^2
+            print('image number:', i)
+            coefficient_of_dermination_x = r2_score(xprojection, outx.best_fit)
+            print('rx^2= ',coefficient_of_dermination_x)
+                    
+            coefficient_of_dermination_y = r2_score(yprojection, outy.best_fit)
+            print('ry^2= ',coefficient_of_dermination_y)
+    
+            #paramsx    = outx.best_values
+            #sigmax[n]  = paramsx['sigma']
+            #print(parsx.keys()) # = odict_keys(['sigma', 'center', 'amplitude', 'fwhm', 'height'])
+            
+            #print(outx.fit_report())
+            #print(outy.fit_report())
+    
+            plt.plot(xaxis, xprojection, 'b.', markersize=1,  label='raw x data')
+            #plt.plot(xaxis, outx.init_fit, 'k--', label='inital guess')
+            plt.plot(xaxis, outx.best_fit, 'b-', label='best fit')
+            
+            plt.plot(yaxis, yprojection, 'k.', markersize=1,  label='raw y data')
+            #plt.plot(xaxis, outy.init_fit, 'k--', label='inital guess')
+            plt.plot(yaxis, outy.best_fit, 'k-', label='best fit')
+            plt.legend(loc='best')
+            pdf.savefig(bbox_inches='tight', dpi=1000)
+            plt.close()
+    plt.close('all')
+
+    beamsizes['sigmax']=sigmax
+    beamsizes['sigmay']=sigmay
+
+    return(beamsizes)
+
 #-------------------------------------------------------------------------------
 def fwhm_calc(images, fiducial, outfile_base):
     #This function calcs fwhm of the data points
@@ -409,53 +486,9 @@ def fwhm_calc(images, fiducial, outfile_base):
         fwhm[i] = 0
 
     return(fwhm) 
-#-------------------------------------------------------------------------------
-def combo_model(images, fiducial, dim='x', fit_type='combo'):
-    plt.close('all')
-    #Finding number and size of images
-    dx, dy, n_images  = np.shape(images)
-
-    for i in range(0,1):#n_images):
-        image = images[:,:,i]
-        xprojection, yprojection = raw_data_curves(image)
-        xaxis   = (np.arange(0,dx) - dx/2)*fiducial
-        yaxis   = (np.arange(0,dy) - dy/2)*fiducial
-    
-        gauss_mod = GaussianModel(prefix='gauss_')
-        const_mod = ConstantModel(prefix='const_')
-        #stepup_mod  = StepModel(prefix='stepu_')
-        #stepdn_mod  = StepModel(prefix='stepd_')
-        mod = const_mod + gauss_mod 
-       
-        cx = const_mod.guess(xprojection) #c=np.min(xprojection))
-        gx = gauss_mod.guess(xprojection, x=xaxis)
-        parsx = cx + gx 
-        outx = mod.fit(xprojection, parsx, x=xaxis)
-        
-        cy = const_mod.guess(yprojection) #c=np.min(xprojection))
-        gy = gauss_mod.guess(yprojection, x=yaxis)
-        parsy = cy + gy 
-        outy = mod.fit(yprojection, parsy, x=yaxis)
-
-        #paramsx    = outx.best_values
-        #sigmax[n]  = paramsx['sigma']
-        #print(parsx.keys()) # = odict_keys(['sigma', 'center', 'amplitude', 'fwhm', 'height'])
-        
-        print(outx.fit_report())
-        print(outy.fit_report())
-
-        plt.plot(xaxis, xprojection, 'b.', markersize=1,  label='raw x data')
-        #plt.plot(xaxis, outx.init_fit, 'k--', label='inital guess')
-        plt.plot(xaxis, outx.best_fit, 'b-', label='best fit')
-        
-        plt.plot(yaxis, yprojection, 'k.', markersize=1,  label='raw y data')
-        #plt.plot(xaxis, outy.init_fit, 'k--', label='inital guess')
-        plt.plot(yaxis, outy.best_fit, 'k-', label='best fit')
-        plt.legend(loc='best')
-        plt.savefig('combo_model.pdf', dpi=1000, bbox_inches='tight')
 
 
-    return(outx, outy)
+
 #-------------------------------------------------------------------------------
 def crop_image(image, x_min=0, x_max=480, y_min=0, y_max=640):
     #Must be one frame
