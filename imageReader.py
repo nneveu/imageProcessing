@@ -44,13 +44,24 @@ def readimage(imagefile, header_size=6, order_type='F'):
     data    = np.fromfile(imagefile, dtype=np.uint16)
     dx      = int(data[1])
     dy      = int(data[0])
-    Nframes = int(data[2])
-    length  = dx*dy*Nframes   
-    n = header_size + 1
-    images  = data[n:]
+
+    if header_size==6:
+        Nframes = int(data[2])+1
+        length  = dx*dy*Nframes   
+        n = header_size #+ 1 
+        images  = data[n:]
+    else:
+        Nframes = int(data[2])
+        length  = dx*dy*Nframes   
+        n = header_size + 1 
+        images  = data[n:]
      
+ 
     if length != np.size(images):
         print('ERROR array size does not match dimensions, check header_size')
+        print('length', length)
+        print('image size', np.size(images))
+        print(dx, dy, Nframes, int(data[3]), int(data[4]), int(data[5]), int(data[6]))
     #==========================================================
     #Reading images into 3D array 
     # X by Y by Frame Number
@@ -240,20 +251,19 @@ def raw_data_curves(image, oneframe=1 ):
     if oneframe == 1:
        f1 = image
     
-    dx, dy = np.shape(image)
+    dy, dx = np.shape(image)
     #print('raw data', dx, dy)
     #X fit, one for one sum across lines
     proj_x = np.zeros([dx])
     for i in range(0,dx):     
-        line = f1[i,:]
+        line = f1[:,i]
         proj_x[i] = np.sum(line)
     
     #Finding y fit
     proj_y = np.zeros([dy])
-    for i in range(0,dy): 
-
-        line = f1[:,i]
-        proj_y[i] = np.sum(line)
+    for j in range(0,dy): 
+        line = f1[j,:]
+        proj_y[j] = np.sum(line)
          
     return (proj_x, proj_y)
 
@@ -383,15 +393,17 @@ def fit_gaussian(images, fiducial, output_filename, clip_tail=50, print_r2='no')
     #plt.plot(x_axis, y_new)
     return (beamsizes)
 #-------------------------------------------------------------------------------
-def combo_model(images, fiducial, outfile, fit_type='combo'):
+def combo_model(images, fiducial, outfile, fit_type='combo', print_r2='no'):
     plt.close('all')
     #Finding number and size of images
-    dx, dy, n_images  = np.shape(images)
+    dy, dx, n_images  = np.shape(images)
 
     #Creating empty arrays to hold sigma 
     #value for each image
     sigmax    = np.zeros((n_images))
     sigmay    = np.zeros((n_images))
+    rx2       = np.zeros((n_images))
+    ry2       = np.zeros((n_images))
     print('Using fiducial of:', fiducial, '[mm/pixel]')
     #print(np.shape(images))
     beamsizes = {}
@@ -423,21 +435,23 @@ def combo_model(images, fiducial, outfile, fit_type='combo'):
             gy = gauss_mod.guess(yprojection, x=yaxis)
             parsy = cy + gy 
             outy = mod.fit(yprojection, parsy, x=yaxis)
-            paramsy    = outx.best_values
+            paramsy    = outy.best_values
             sigmay[i]  = paramsy['gauss_sigma']
-    
+            
+
+            #coefficient_of_dermination_x = r2_score(xprojection, outx.best_fit)   
+            #coefficient_of_dermination_y = r2_score(yprojection, outy.best_fit)
+            rx2[i] = r2_score(xprojection, outx.best_fit)
+            ry2[i] = r2_score(yprojection, outy.best_fit)  
+
             #Calc r^2
-            print('image number:', i)
-            coefficient_of_dermination_x = r2_score(xprojection, outx.best_fit)
-            print('rx^2= ',coefficient_of_dermination_x)
-                    
-            coefficient_of_dermination_y = r2_score(yprojection, outy.best_fit)
-            print('ry^2= ',coefficient_of_dermination_y)
+            if print_r2 == 'yes':
+                print('image number:', i)
+                print('rx^2= ',coefficient_of_dermination_x)
+                print('ry^2= ',coefficient_of_dermination_y)
     
-            #paramsx    = outx.best_values
             #sigmax[n]  = paramsx['sigma']
             #print(parsx.keys()) # = odict_keys(['sigma', 'center', 'amplitude', 'fwhm', 'height'])
-            
             #print(outx.fit_report())
             #print(outy.fit_report())
     
@@ -456,7 +470,7 @@ def combo_model(images, fiducial, outfile, fit_type='combo'):
     beamsizes['sigmax']=sigmax
     beamsizes['sigmay']=sigmay
 
-    return(beamsizes)
+    return(beamsizes, rx2, ry2)
 
 #-------------------------------------------------------------------------------
 def fwhm_calc(images, fiducial, outfile_base):
@@ -511,7 +525,8 @@ def add_dist_to_image(crop, fiducial, filename, title='no title set', background
    # step 3 - format plots
 
    #Getting shape of image
-   dx, dy = crop.shape
+   dy,dx = crop.shape
+   #print(dx,dy)
 
    #Calculating x and y axis in mm, using fiducial (mm/pixel)    
    #The center of the axis is zero, this is an arbitrary choice
@@ -532,8 +547,9 @@ def add_dist_to_image(crop, fiducial, filename, title='no title set', background
    # make some labels invisible
    axHistx.xaxis.set_tick_params(labelbottom=False)
    axHisty.yaxis.set_tick_params(labelleft=False)
-   axHisty.plot(xprojnorm, -xaxis, linewidth=3)
-   axHistx.plot(yaxis, yprojnorm, linewidth=3)#, orientation='horizontal') 
+   #print(len(xaxis), len(xprojnorm))
+   axHisty.plot(yprojnorm, -yaxis, linewidth=3) #xprojnorm, -xaxis, linewidth=3)
+   axHistx.plot(xaxis, xprojnorm, linewidth=3)#yaxis, yprojnorm, linewidth=3)#, orientation='horizontal') 
  
    cmap = plt.cm.viridis 
    cmap.set_under(color='white')    
