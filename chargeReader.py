@@ -25,7 +25,7 @@ import numpy as np
 #import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
-
+import sys
 """
 Code steps: 
     1. Find the number of channels and steps in each data set.
@@ -70,7 +70,35 @@ def csv_to_volts_array(ict_file):
  
     return(volts_array, time_array)
 
-def sdds_to_volts_array(ict_file): 
+def sdds_to_volts_array(ict_file):
+    #lines 1-17 Are header. 
+    header = 17
+    #After the 17 line header
+    #   line 18 = date and time
+    #   line 19 = data set number i.e: 0-100
+    #   line 20 = firt line of data
+
+    #Needed to change function because step numbers 
+    #are not longer recorded on line 20 of sdds file
+    
+    #Get date for looping through data
+    #Grab portion of data that will not change (month, day)
+    date = (getline(ict_file,header+1))[0:10] #.split(':')
+    print("The data was taken on,", date)
+   
+    #Make empty list for line numbers 
+    datelines = []
+    #Open file to loop through data
+    with open(ict_file) as sddsfile:
+        #Find all lines with date on them
+        for linenumber, line in enumerate(sddsfile): 
+            if date in line:
+                datelines.append(linenumber)
+    print(datelines)
+    sys.exit()
+
+
+def sdds_to_volts_array_preJuly2018(ict_file): 
     #https://stackoverflow.com/questions/20414989/how-many-times-a-word-occurs-in-a-file?answertab=votes#tab-top   
     #Defining variables for use later in the script
     #lines 1-17 Are header. 
@@ -84,10 +112,11 @@ def sdds_to_volts_array(ict_file):
     
     #Loading the number of steps and channels from the 20th line 
     steps_channels = getline(ict_file,header+3)
-    steps    = int(steps_channels.split(' ')[0]) 
-    channels = int(steps_channels.split(' ')[1].rstrip()) 
-    print('Number of channels is: ', channels)
-    print('Number of steps is: ', steps) 
+    steps = 5001
+    #steps    = int(steps_channels.split(' ')[0]) 
+    #channels = int(steps_channels.split(' ')[1].rstrip()) 
+    #print('Number of channels is: ', channels)
+    #print('Number of steps is: ', steps) 
     
     date = (getline(ict_file,header+1)).split(':')
     #Getting month, day, year only -> [:3]
@@ -113,17 +142,19 @@ def sdds_to_volts_array(ict_file):
             if date in line:
                 #print date
                 for i in range(0,steps):
-                    data = float(getline(ict_file, ind+3+i))
-                    #print data
+                    #print(getline(ict_file, ind+3+i))
+                    data = float(getline(ict_file, ind+3+i).split('\t')[1])
+                    print(data) 
                     volts_array[i,current_col] = data
-                cal = getline(ict_file, ind+steps+4).split()[:-2]
-                #Calibration array has 3 numbers:
-                #0 - deltaT
-                #1 - vertical scaling?
-                #2 - vertical position, not needed?
-                cal_array[0,current_col] = float(cal[3])
-                cal_array[1,current_col] = float(cal[4])
-                cal_array[2,current_col] = float(cal[5])
+                ###cal = getline(ict_file, ind+steps+4)#.split()[:-2]
+                ###print(cal)
+                ####Calibration array has 3 numbers:
+                ####0 - deltaT
+                ####1 - vertical scaling?
+                ####2 - vertical position, not needed?
+                ###cal_array[0,current_col] = float(cal[3])
+                ###cal_array[1,current_col] = float(cal[4])
+                ###cal_array[2,current_col] = float(cal[5])
 
                 #print cal_array[:,current_col]
                 current_col = current_col +1    
