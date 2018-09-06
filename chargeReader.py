@@ -26,6 +26,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 import sys
+from itertools import islice 
 """
 Code steps: 
     1. Find the number of channels and steps in each data set.
@@ -94,7 +95,28 @@ def sdds_to_volts_array(ict_file):
         for linenumber, line in enumerate(sddsfile): 
             if date in line:
                 datelines.append(linenumber)
-    print(datelines)
+    sddsfile.close()
+
+    #Print number of data sets taken:
+    shots = len(datelines)
+    print('This many shots were taken: ', shots)
+
+    #Make array to hold charge data 
+    #(remove header and shot text)
+    steps = datelines[1]-datelines[0]
+    print(steps)
+    data = []
+    volts_array = np.zeros((steps,shots))
+    for i in range(1,shots):
+        with open(ict_file) as f:
+                 data = list(islice(f, datelines[i-1], datelines[i]))
+                 if i ==1:
+                    print(data)
+        
+        
+        #data = float(getline(ict_file, ind+3+i).split('\t')[1])
+        #volts_array[:,i] = data
+    #print(count) 
     sys.exit()
 
 
