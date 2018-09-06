@@ -621,11 +621,16 @@ def mask_images(image_array, circle_dim): #, im_center, im_radius):
     #plt.show() 
     return(masked_img)
 #-------------------------------------------------------------------------------- 
-def circle_finder(image, sigma=0.25, min_r=0.25, max_r=0.35, n=0):
+def circle_finder(image, sigma=0.25, min_r=0.25, max_r=0.35, n=0, showcircle=True):
     #This function finds the yag screen and returns the 
     # dimensions of the circle in a dictionary. 
     # This info can be used to find the fiducial 
     # of the image and create a mask.
+
+    # showcirclue = whether or not to show the resulting circle 
+    #               overlaid on the original pictures.
+    #               Default is True, to show image. This can be set
+    #               To false if you know your radius is correct. 
 
     # n = image location, if there is more than one image in array and 
     #     you do not want to use the first image as the fiducial. 
@@ -653,10 +658,10 @@ def circle_finder(image, sigma=0.25, min_r=0.25, max_r=0.35, n=0):
     #Grabbing first image if multiple shots
     #You can choose a alternate image by adjusting n
     try: 
-        dx, dy, dz = image.shape
+        dy, dx, dz = image.shape
         image = image[:,:,n]
     except:
-        dx, dy = image.shape
+        dy, dx = image.shape
     print('\nFinding circle in image with dimensions:', image.shape)
     #plt.imshow(image)
     #plt.show()
@@ -688,52 +693,54 @@ def circle_finder(image, sigma=0.25, min_r=0.25, max_r=0.35, n=0):
     center_y = int(round(np.mean(cy)))
     center_x = int(round(np.mean(cx)))
     radius   = int(round(np.mean(radii)))
-    print('- Now showing results - ')
-    print('radius:', radius, '\ncenter_x:', center_x, '\ncenter_y:', center_y)
-    print('Now showing image with resulting circle.')
-    print('This is for visual confirmation and no further input is needed.')
-    print('If the circle is not centered on the YAG, adjust min_r and min_x in circle_finder.')
-    print('Continue with rest of script by closing picture.\n')
 
-    plt.close('all') #closing figures from previous functions
-    fig, ax = plt.subplots(ncols=1, nrows=1, figsize=(10, 2))
-    circy, circx = circle_perimeter(center_y, center_x, radius) 
-      
-    #rescaling to 8bit for easy inspection
-    #This does not effect result, only for eye double check
-    min_val = np.min(image)
-    max_val = np.max(image)
-    test    = image
-    test    = test.clip(min_val, max_val, out=test)
-    test   -= min_val 
-    np.floor_divide(test, (max_val - min_val + 1) / 256, out=test, casting='unsafe')
-    test    = test.astype(np.uint8)
-    image2 = color.gray2rgb(test) 
-    #plt.imshow(image2)
-    #plt.show()
- 
-    if (all(x <= 480 for x in circx) and all(y <= 640 for y in circy)):
-        #Circle fits in original image
-        image2[circy, circx] = (255, 255, 0) #(220, 20, 20)
-        ax.imshow(image2)
-        plt.show()
-    elif (any(x > 480 for x in circx) or any(y > 640 for y in circy)):
-        print('Circle is bigger than image, padding array...')
-            #Amount of padding needed
-        padx = int((np.max(circx) - 480) / 2)
-        pady = int((np.max(circy) - 640) / 2)
-        if padx < 0: 
-            padx=0
-        if pady <0:
-            pady=0
-        print(padx, pady)
-        pad_image = np.pad(image2,((pady+1, pady+1), (padx+1, padx+1), (0, 0)), mode='constant', constant_values=0)
-        print('new image size', np.shape(pad_image))
-        pad_image[circy, circx] = (255, 255, 0) #(220, 20, 20)
-        ax.imshow(pad_image)
-        plt.show()
-    else: 
-            print('Somethings wrong, circle dimensions out of bounds.')
+    if showcircle:
+        print('- Now showing results - ')
+        print('radius:', radius, '\ncenter_x:', center_x, '\ncenter_y:', center_y)
+        print('Now showing image with resulting circle.')
+        print('This is for visual confirmation and no further input is needed.')
+        print('If the circle is not centered on the YAG, adjust min_r and min_x in circle_finder.')
+        print('Continue with rest of script by closing picture.\n')
+    
+        plt.close('all') #closing figures from previous functions
+        fig, ax = plt.subplots(ncols=1, nrows=1, figsize=(10, 2))
+        circy, circx = circle_perimeter(center_y, center_x, radius) 
+          
+        #rescaling to 8bit for easy inspection
+        #This does not effect result, only for eye double check
+        min_val = np.min(image)
+        max_val = np.max(image)
+        test    = image
+        test    = test.clip(min_val, max_val, out=test)
+        test   -= min_val 
+        np.floor_divide(test, (max_val - min_val + 1) / 256, out=test, casting='unsafe')
+        test    = test.astype(np.uint8)
+        image2 = color.gray2rgb(test) 
+        #plt.imshow(image2)
+        #plt.show()
+     
+        if (all(x <= dx for x in circx) and all(y <= dy for y in circy)):
+            #Circle fits in original image
+            image2[circy, circx] = (255, 255, 0) #(220, 20, 20)
+            ax.imshow(image2)
+            plt.show()
+        elif (any(x > dx for x in circx) or any(y > dy for y in circy)):
+            print('Circle is bigger than image, padding array...')
+                #Amount of padding needed
+            padx = int((np.max(circx) - dx) / 2)
+            pady = int((np.max(circy) - dy) / 2)
+            if padx < 0: 
+                padx=0
+            if pady <0:
+                pady=0
+            #print(padx, pady)
+            pad_image = np.pad(image2,((pady+1, pady+1), (padx+1, padx+1), (0, 0)), mode='constant', constant_values=0)
+            print('new image size', np.shape(pad_image))
+            pad_image[circy, circx] = (255, 255, 0) #(220, 20, 20)
+            ax.imshow(pad_image)
+            plt.show()
+        else: 
+                print('Somethings wrong, circle dimensions out of bounds.')
 
     #Making dictionary with YAG circle dimensions
     circle_dimensions = {}
