@@ -399,14 +399,17 @@ def combo_model(images, fiducial, outfile, fit_type='combo', print_r2='no'):
     dy, dx, n_images  = np.shape(images)
 
     #Creating empty arrays to hold sigma 
-    #value for each image
+    #and centroid value for each image
     sigmax    = np.zeros((n_images))
     sigmay    = np.zeros((n_images))
+    xcentroid = np.zeros((n_images))
+    ycentroid = np.zeros((n_images))
     rx2       = np.zeros((n_images))
     ry2       = np.zeros((n_images))
     print('Using fiducial of:', fiducial, '[mm/pixel]')
     #print(np.shape(images))
     beamsizes = {}
+    centroids = {}
 
     print('Calculating the fits and plotting the results...')
     pdffile =  'combo_model_fit_curves.pdf'
@@ -416,7 +419,8 @@ def combo_model(images, fiducial, outfile, fit_type='combo', print_r2='no'):
             xprojection, yprojection = raw_data_curves(image)
             xaxis   = (np.arange(0,dx) - dx/2)*fiducial
             yaxis   = (np.arange(0,dy) - dy/2)*fiducial
-        
+       
+
             gauss_mod = GaussianModel(prefix='gauss_')
             const_mod = ConstantModel(prefix='const_')
             #stepup_mod  = StepModel(prefix='stepu_')
@@ -437,8 +441,14 @@ def combo_model(images, fiducial, outfile, fit_type='combo', print_r2='no'):
             outy = mod.fit(yprojection, parsy, x=yaxis)
             paramsy    = outy.best_values
             sigmay[i]  = paramsy['gauss_sigma']
-            
-
+ 
+            #Calculate centroid of fit
+            maxval_x = np.argmax(outx.best_fit)
+            maxval_y = np.argmax(outy.best_fit)
+            xcentroid[i] = xaxis[maxval_x]
+            ycentroid[i] = yaxis[maxval_y]
+            #print(xaxis[maxval_x], yaxis[maxval_y])
+           
             #coefficient_of_dermination_x = r2_score(xprojection, outx.best_fit)   
             #coefficient_of_dermination_y = r2_score(yprojection, outy.best_fit)
             rx2[i] = r2_score(xprojection, outx.best_fit)
@@ -454,7 +464,10 @@ def combo_model(images, fiducial, outfile, fit_type='combo', print_r2='no'):
             #print(parsx.keys()) # = odict_keys(['sigma', 'center', 'amplitude', 'fwhm', 'height'])
             #print(outx.fit_report())
             #print(outy.fit_report())
-    
+   
+            plt.title('Beam Intensity vs. Position with Combination Fit')
+            plt.ylabel('Intensity [arb]')
+            plt.xlabel('Position on YAG Screen [mm]')
             plt.plot(xaxis, xprojection, 'b.', markersize=1,  label='raw x data')
             #plt.plot(xaxis, outx.init_fit, 'k--', label='inital guess')
             plt.plot(xaxis, outx.best_fit, 'b-', label='best fit')
@@ -469,8 +482,13 @@ def combo_model(images, fiducial, outfile, fit_type='combo', print_r2='no'):
 
     beamsizes['sigmax']=sigmax
     beamsizes['sigmay']=sigmay
+    centroids['x'] = xcentroid
+    centroids['y'] = ycentroid
 
-    return(beamsizes, rx2, ry2)
+    print('x centroid', np.average(xcentroid), 'std', np.std(xcentroid))
+    print('y centroid', np.average(ycentroid), 'std', np.std(ycentroid))
+
+    return(beamsizes, rx2, ry2, centroids)
 
 #-------------------------------------------------------------------------------
 def fwhm_calc(images, fiducial, outfile_base):
@@ -550,7 +568,9 @@ def add_dist_to_image(crop, fiducial, filename, title='no title set', background
    #print(len(xaxis), len(xprojnorm))
    axHisty.plot(yprojnorm, -yaxis, linewidth=3) #xprojnorm, -xaxis, linewidth=3)
    axHistx.plot(xaxis, xprojnorm, linewidth=3)#yaxis, yprojnorm, linewidth=3)#, orientation='horizontal') 
- 
+
+
+
    cmap = plt.cm.viridis 
    cmap.set_under(color='white')    
    color = ax.imshow(crop, interpolation='none', cmap=cmap, vmin=background, extent=[np.min(xaxis), np.max(xaxis), np.min(yaxis), np.max(yaxis)])
